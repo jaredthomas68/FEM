@@ -16,9 +16,27 @@ def basis_functions(x, node, Nodes, Lengths):
     return Na
 
 
-def define_stiffness_matrix():
-
-    return
+def define_stiffness_matrix(Nell, h):
+    k_basis = np.zeros((2,2))
+    K = np.zeros((Nell, Nell))
+    # get base k matrices
+    for e in np.arange(0, Nell):
+        for a in np.arange(0, 2):
+            for b in np.arange(0, 2):
+                k_basis[a,b] = ((-1)**(a+b))/h[e]
+        if e == 0:
+            K[e, e] = k_basis[0,0]
+            K[e+1, e+1] = k_basis[1,1]
+            K[e, e + 1] = k_basis[0, 1]
+            K[e + 1, e] = k_basis[1, 0]
+        elif e < Nell - 1:
+            K[e, e] += k_basis[0, 0]
+            K[e + 1, e + 1] = k_basis[1, 1]
+            K[e, e + 1] = k_basis[0, 1]
+            K[e + 1, e] = k_basis[1, 0]
+        else:
+            K[e, e] += k_basis[0, 0]
+    return K
 
 def define_forcing_vector():
 
@@ -30,12 +48,20 @@ def solve_for_d():
 
 if __name__ == "__main__":
 
-    x = 2.0
-    node = 1
-    Nodes = np.array([0, 0.5, 1])
-    Lengths = Nodes/Nodes.size
+    # input variables
+    Nell = 5
+    h = np.ones(Nell)/Nell
+    print h, Nell, define_stiffness_matrix(Nell, h)
 
-    x = Nodes[0]
+    # pre compute
+    Nnodes = Nell + 1
 
-    print x, node, Nodes, Lengths
-    print basis_functions(x, node, Nodes, Lengths)
+    # x = 2.0
+    # node = 1
+    # Nodes = np.array([0, 0.5, 1])
+    # Lengths = Nodes/Nodes.size
+    #
+    # x = Nodes[0]
+    #
+    # print x, node, Nodes, Lengths
+    # print basis_functions(x, node, Nodes, Lengths)
