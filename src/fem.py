@@ -1,6 +1,7 @@
 import numpy as np
 import scipy as sp
 import time
+import matplotlib.pylab as plt
 
 
 # def basis_functions(x, node, Nodes, Lengths):
@@ -93,10 +94,28 @@ def solve_for_displacements(d, Nell, he, g=0):
     for e in np.arange(1, Nell):
         x1 += he[e]
         u[e] = u[e-1] + (1.-x1)*d[e]
+        # u[e] = (1.-x1)*d[e]
 
-    u[-1] = g
+    u[-1] = u[-2] + g
+    # u[-1] = g
 
     return u
+
+def plot_displaccements(u, he, Nell, q=1):
+
+    x_el = np.zeros(Nell+1)
+    x_ex = np.linspace(0, 1., 100)
+
+    for e in np.arange(1, Nell):
+        x_el[e] = x_el[e-1] + he[e-1]
+    x_el[Nell] = x_el[Nell-1] + he[Nell-1]
+
+    u_ex = q*(1.-x_ex**3)/6.
+
+    plt.plot(x_ex, u_ex)
+    plt.plot(x_el, u, 's')
+    plt.show()
+    return
 
 if __name__ == "__main__":
 
@@ -114,27 +133,26 @@ if __name__ == "__main__":
     F = define_forcing_vector(Nell, he, ffunc=1)
     toc = time.time()
     print F
-    # print np.array([1/96., 1./16., 1/8., 3./16.])
+    print np.array([1/96., 1./16., 1/8., 3./16.])
     print "Time to define forcing vector: %.3f (s)" % (toc - tic)
 
     tic = time.time()
     d = solve_for_d(K, F)
     toc = time.time()
     print d
-    # print np.array([1./6., 21./128., 7./48., 37./384.])
+    print np.array([1./6., 21./128., 7./48., 37./384.])
     print "Time to solve for d: %.3f (s)" % (toc - tic)
 
     tic = time.time()
     u = solve_for_displacements(d, Nell, he, g=0)
     toc = time.time()
     print u
-    # print np.array([1./6., 21./128., 7./48., 37./384.])
+    print np.array([1./6., 21./128., 7./48., 37./384., 0])
     print "Time to solve for u(x): %.3f (s)" % (toc - tic)
 
     print "Finished"
 
-
-
+    plot_displaccements(u, he, Nell)
 
 
     # pre compute
