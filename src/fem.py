@@ -1,5 +1,6 @@
 import numpy as np
-import scipy as sp
+import scipy.sparse as sparse
+from scipy.sparse.linalg import spsolve
 import time
 import matplotlib.pylab as plt
 
@@ -57,7 +58,6 @@ def define_forcing_vector(Nell, he, ffunc=0):
             F[e] += f_e[0]
             F[e+1] = f_e[1]
         else:
-            print "here", f_e
             F[e] += f_e[0]
         x1 += he[e]
     return F
@@ -79,8 +79,14 @@ def forcing_function(x, ffunc=0):
 def solve_for_d(K, F):
 
     # Kd = F
+    # sK = sparse.csr_matrix(K)
+    # sK = sparse.csr_matrix(F)
 
-    d = np.matmul(np.linalg.inv(K),F)
+    # d = np.matmul(np.linalg.inv(K),F)
+    # print d
+
+    sK = sparse.csr_matrix(K)
+    d = spsolve(sK, F)
 
     return d
 
@@ -90,11 +96,11 @@ def solve_for_displacements(d, Nell, he, g=0):
     x1 = 0.0
 
     u[0] = (1.-x1)*d[0]
-    print x1
+
     for e in np.arange(1, Nell):
 
         x1 += he[e]
-        print x1
+
         # u[e] = u[e-1] + (1.-x1)*d[e]
         # u[e] = (1.-x1)*d[e]
         u[e] = d[e]
@@ -116,6 +122,7 @@ def get_node_locations_x(Nell, he):
 
 def plot_displaccements(u, x, he, Nell, q=1, ffunc=1):
 
+    plt.rcParams.update({'font.size': 22})
 
     x_ex = np.linspace(0, 1., 100)
 
@@ -124,14 +131,20 @@ def plot_displaccements(u, x, he, Nell, q=1, ffunc=1):
     u_ex = get_u_of_x_exact(x_ex, q, ffunc)
 
     u_a = get_u_of_x_approx(x, u, he)
-
-    plt.plot(x_ex, u_ex)
-    plt.plot(x_el, u, '-s')
-    plt.plot(x, u_a, 'o', markerfacecolor='none')
+    plt.figure()
+    plt.plot(x_ex, u_ex, label="Exact sol.", linewidth=3)
+    # plt.plot(x_el, u, '-s', label="Approx. sol. (nodes)")
+    plt.plot(x, u_a, '--r', markerfacecolor='none', label="Approx. sol.", linewidth=3)
 
     plt.xlabel('X Position')
     plt.ylabel("Displacement")
+    functions = ["$f(x)=c$", "$f(x)=x$", "$f(x)=x^2$"]
+    plt.title(functions[ffunc]+", $n=%i$" %Nell, y=1.02)
+    plt.legend(loc=3, frameon=False)
+    plt.tight_layout()
+    plt.savefig("displacement_func%i_Nell%i.pdf" %(ffunc, Nell))
     plt.show()
+    plt.close()
     return
 
 def get_u_of_x_approx(Xp, u, he):
@@ -151,10 +164,10 @@ def get_u_of_x_approx(Xp, u, he):
 
 def get_u_of_x_exact(x, q, ffunc=1):
 
-    u_ex = 0
+    u_ex = 0.
 
     if ffunc == 0:
-        u_ex = q*(1-x**2)/2.
+        u_ex = q*(1.-x**2)/2.
     elif ffunc == 1:
         u_ex = q*(1.-x**3)/6.
     elif ffunc == 2:
@@ -164,6 +177,9 @@ def get_u_of_x_exact(x, q, ffunc=1):
 
 def quadrature(Xe, he, ue, ffunc):
 
+    # print Xe, he, ue, ffunc
+    # quit()
+    Nell = he.size
     xi = np.array([-np.sqrt(3./5.), 0., np.sqrt(3./5.)])
     w = np.array([5./9., 8./9., 5./9.])
 
@@ -177,30 +193,80 @@ def quadrature(Xe, he, ue, ffunc):
         ua = get_u_of_x_approx(x, ue, he)
 
         error_squared += np.sum(((ux-ua)**2)*dxdxi*w)
-
     error = np.sqrt(error_squared)
 
     return error
 
 def x_of_xi(xi, Xe, he, el):
-
+    # print xi, Xe.size, he, el
+    # quit()
     x = (he[el]*xi+Xe[el]+Xe[el+1])/2.
 
     return x
 
 def plot_error():
 
-    
 
+    n = np.array([10, 100, 1000, 10000])
+    error = np.zeros([3, n.size])
+    h = np.ones(n.size)/n
+    print h, n
+    for ffunc, i in zip(np.array([0, 1, 2]), np.arange(0, 3)):
+        for Nell, j in zip(n, np.arange(n.size)):
+
+            # print Nell
+            he = np.ones(Nell) / Nell
+            Xe = get_node_locations_x(Nell, he)
+            K = define_stiffness_matrix(Nell, he)
+            F = define_forcing_vector(Nell, he, ffunc=ffunc)
+            d = solve_for_d(K, F)
+            u = solve_for_displacements(d, Nell, he, g=0)
+            error[i,j] = quadrature(Xe, he, u, ffunc)
+            print "ffunc: %i, Nell: %i, Error: %f" % (ffunc, Nell, error[i, j])
+
+    np.savetxt('error.txt', np.c_[n, h, np.transpose(error)], header="Nell, h, E(f(x)=c), E(f(x)=x), E(f(x)=x^2)")
+    plt.loglog(h, error[0,:], '-o', label='$f(x)=c$')
+    plt.loglog(h, error[1,:], '-o', label='$f(x)=x$')
+    plt.loglog(h, error[2,:], '-o', label='$f(x)=x^2$')
+    plt.legend(loc=2)
+    plt.xlabel('$h$')
+    plt.ylabel('$Error$')
+    plt.show()
+    return
+
+def get_slope():
+
+    data = np.loadtxt('error.txt')
+    fx0 = data[:, 2]
+    fx1 = data[:, 3]
+    fx2 = data[:, 4]
+    h = data[:, 1]
+    print h
+    print fx0
+    print fx1
+    print fx2
+
+    print (np.log(fx0[-1])-np.log(fx0[0]))/(np.log(h[-1])-(np.log(h[0])))
+    print (np.log(fx1[-1])-np.log(fx1[0]))/(np.log(h[-1])-(np.log(h[0])))
+    print (np.log(fx2[-1])-np.log(fx2[0]))/(np.log(h[-1])-(np.log(h[0])))
+    # print (fx2[-1]-fx2[0])/(h[-1]-h[0])
     return
 
 if __name__ == "__main__":
 
+    get_slope()
+    exit()
+    # plot_error()
+    # exit()
+    #
     # input variables
-    Nell = 4
+    Nell = 10
+    ffunc = 1
+    # for ffunc in np.array([0, 1, 2]):
+    #     for Nell in np.array([10, 100]):
     he = np.ones(Nell)/Nell
     x = np.linspace(0, 1, 4*Nell+1)
-    ffunc = 1
+
     Xe = get_node_locations_x(Nell, he)
     # error
     # er_4_el = 0.0051
