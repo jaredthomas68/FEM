@@ -23,23 +23,24 @@ import matplotlib.pylab as plt
 def define_stiffness_matrix(Nell, he):
     k_basis = np.zeros((2,2))
     K = np.zeros((Nell, Nell))
-    # get base k matrices
+    LM = get_lm(Nell)
+
     for e in np.arange(0, Nell):
+
+        # get base k matrix for element e
         for a in np.arange(0, 2):
             for b in np.arange(0, 2):
                 k_basis[a,b] = ((-1)**(a+b))/he[e]
-        if e == 0:
-            K[e, e] = k_basis[0,0]
-            K[e+1, e+1] = k_basis[1,1]
-            K[e, e + 1] = k_basis[0, 1]
-            K[e + 1, e] = k_basis[1, 0]
-        elif e < Nell - 1:
-            K[e, e] += k_basis[0, 0]
-            K[e + 1, e + 1] = k_basis[1, 1]
-            K[e, e + 1] = k_basis[0, 1]
-            K[e + 1, e] = k_basis[1, 0]
-        else:
-            K[e, e] += k_basis[0, 0]
+
+        # populate the stifness matrix for entries corresponding to element e
+        for a in np.arange(0, 2):
+            if LM[a, e] == 0:
+                continue
+            for b in np.arange(0, 2):
+                if LM[b, e] == 0:
+                    continue
+                K[int(LM[a,e]-1), int(LM[b,e]-1)] += k_basis[a,b]
+
     return K
 
 def define_forcing_vector(Nell, he, ffunc=0):
@@ -204,6 +205,22 @@ def x_of_xi(xi, Xe, he, el):
 
     return x
 
+def get_lm(Nell):
+    """
+    Populates the location matrix, LM, to track the location of data in the global stiffness matrix, K
+    :param Nell: Number of elements
+    :return LM: Location matrix for data in the stiffness matrix, K
+    """
+
+    LM = np.zeros([2, Nell])
+
+    for e in np.arange(0, Nell):
+        LM[0, e] = e + 1
+        LM[1, e] = e + 2
+    LM[-1, -1] = 0
+
+    return LM
+
 def plot_error():
 
 
@@ -254,14 +271,15 @@ def get_slope():
 
 if __name__ == "__main__":
 
-    get_slope()
-    exit()
+    # get_lm(10)
+    # get_slope()
+    # exit()
     # plot_error()
     # exit()
     #
     # input variables
     Nell = 10
-    ffunc = 1
+    ffunc = 2
     # for ffunc in np.array([0, 1, 2]):
     #     for Nell in np.array([10, 100]):
     he = np.ones(Nell)/Nell
