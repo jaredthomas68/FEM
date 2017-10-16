@@ -5,21 +5,6 @@ import time
 import matplotlib.pylab as plt
 
 
-# def basis_functions(x, node, Nodes, Lengths):
-#     Na = 0.0
-#     print x, node, Nodes, Lengths
-#     if node == 1:
-#         Na = (Nodes[1]- x)/Lengths[1]
-#     elif node == Nodes.size:
-#         Na = (x-Nodes[-1])/Lengths[-1]
-#     elif (x >= Nodes[node-1]) and (x<=Nodes[node]):
-#         Na = (x-Nodes[node-1])/Lengths[node-1]
-#     elif (x >= Nodes[node]) and (x<=Nodes[node+1]):
-#         Na = (x-Nodes[node-1])/Lengths[node-1]
-#
-#     return Na
-
-
 def define_stiffness_matrix(Nell, he):
     k_basis = np.zeros((2,2))
     K = np.zeros((Nell, Nell))
