@@ -4,6 +4,36 @@ from scipy.sparse.linalg import spsolve
 import time
 import matplotlib.pylab as plt
 
+def ffunc_constant(x, a):
+    """
+    Constant valued forcing function
+    :param x: point at which to evaluate the forcingg function
+    :param a: parameter values, in this case the value of the constant
+    :return: result of function evaluation, in this case the constant 'a'
+    """
+    f = a
+    return f
+
+
+def ffunc_linear(x, a=np.array([0, 1])):
+    """
+    Linear forcing function
+    :param x: point at which to evaluate the forcingg function
+    :param a: parameter values, in this case an array with two elements
+    :return: the result of the function evaluation
+    """
+    f = a[0] + a[1]*x
+    return f
+
+def ffunc_quadratic(x, a=np.array([0, 0, 1])):
+    """
+    Quadratic forcing function
+    :param x: point at which to evaluate the forcingg function
+    :param a: parameter values, in this case an array with three elements
+    :return: the result of the function evaluation
+    """
+    f = a[0] + a[1]*x + a[2]*x**2
+    return f
 
 def define_stiffness_matrix(Nell, he):
     k_basis = np.zeros((2,2))
@@ -28,15 +58,15 @@ def define_stiffness_matrix(Nell, he):
 
     return K
 
-def define_forcing_vector(Nell, he, ffunc=0):
+def define_forcing_vector(Nell, he, ffunc=ffunc_constant, ffunc_args=np.array([1])):
 
     f_e = np.zeros(2)
     F = np.zeros(Nell)
     x1 = 0.
     for e in np.arange(0, Nell):
         x2 = x1 + he[e]
-        f_e = (he[e]/6.)*np.array([2.*forcing_function(x1, ffunc) + forcing_function(x2, ffunc),
-                                  forcing_function(x1, ffunc) + 2.*forcing_function(x2, ffunc)])
+        f_e = (he[e]/6.)*np.array([2.*ffunc(x1, ffunc_args) + ffunc(x2, ffunc_args),
+                                  ffunc(x1, ffunc_args) + 2.*ffunc(x2, ffunc_args)])
         if e == 0:
             F[e] = f_e[0]
             F[e+1] = f_e[1]
@@ -48,19 +78,7 @@ def define_forcing_vector(Nell, he, ffunc=0):
         x1 += he[e]
     return F
 
-def forcing_function(x, ffunc=0):
 
-    f = 0
-
-    if ffunc == 0:
-        f = 1.
-    elif ffunc == 1:
-        f = x
-    elif ffunc == 2:
-        f = x**2
-    else:
-        ValueError("ffunc must be one of [0, 1, 2]")
-    return f
 
 def solve_for_d(K, F):
 
@@ -106,7 +124,7 @@ def get_node_locations_x(Nell, he):
 
     return x_el
 
-def plot_displaccements(u, x, he, Nell, q=1, ffunc=1):
+def plot_displaccements(u, x, he, Nell, q=1, ffunc=ffunc_constant, ffunc_args=np.array([1])):
 
     plt.rcParams.update({'font.size': 22})
 
@@ -114,7 +132,7 @@ def plot_displaccements(u, x, he, Nell, q=1, ffunc=1):
 
     x_el = get_node_locations_x(Nell, he)
 
-    u_ex = get_u_of_x_exact(x_ex, q, ffunc)
+    u_ex = get_u_of_x_exact(x_ex, q, ffunc_num=len(ffunc_args)-1)
 
     u_a = get_u_of_x_approx(x, u, he)
     plt.figure()
@@ -125,10 +143,10 @@ def plot_displaccements(u, x, he, Nell, q=1, ffunc=1):
     plt.xlabel('X Position')
     plt.ylabel("Displacement")
     functions = ["$f(x)=c$", "$f(x)=x$", "$f(x)=x^2$"]
-    plt.title(functions[ffunc]+", $n=%i$" %Nell, y=1.02)
+    # plt.title(functions[ffunc]+", $n=%i$" %Nell, y=1.02)
     plt.legend(loc=3, frameon=False)
     plt.tight_layout()
-    plt.savefig("displacement_func%i_Nell%i.pdf" %(ffunc, Nell))
+    # plt.savefig("displacement_func%i_Nell%i.pdf" %(ffunc, Nell))
     plt.show()
     plt.close()
     return
@@ -148,20 +166,20 @@ def get_u_of_x_approx(Xp, u, he):
 
     return u_x
 
-def get_u_of_x_exact(x, q, ffunc=1):
+def get_u_of_x_exact(x, q, ffunc_num):
 
     u_ex = 0.
 
-    if ffunc == 0:
+    if ffunc_num == 0:
         u_ex = q*(1.-x**2)/2.
-    elif ffunc == 1:
+    elif ffunc_num == 1:
         u_ex = q*(1.-x**3)/6.
-    elif ffunc == 2:
+    elif ffunc_num == 2:
         u_ex = q * (1. - x ** 4) / 12.
 
     return u_ex
 
-def quadrature(Xe, he, ue, ffunc):
+def quadrature(Xe, he, ue, ffunc_args=1):
 
     # print Xe, he, ue, ffunc
     # quit()
@@ -169,13 +187,15 @@ def quadrature(Xe, he, ue, ffunc):
     xi = np.array([-np.sqrt(3./5.), 0., np.sqrt(3./5.)])
     w = np.array([5./9., 8./9., 5./9.])
 
+    ffunc_num = len(ffunc_args)-1
+
     error_squared = 0.0
     for el in np.arange(0, Nell):
         x = x_of_xi(xi, Xe, he, el)
 
         dxdxi = he[el]/2
 
-        ux = get_u_of_x_exact(x, q=1, ffunc=ffunc)
+        ux = get_u_of_x_exact(x, q=1, ffunc_num=ffunc_num)
         ua = get_u_of_x_approx(x, ue, he)
 
         error_squared += np.sum(((ux-ua)**2)*dxdxi*w)
@@ -212,19 +232,22 @@ def plot_error():
     n = np.array([10, 100, 1000, 10000])
     error = np.zeros([3, n.size])
     h = np.ones(n.size)/n
+
+    ffunc_array = [ffunc_constant, ffunc_linear, ffunc_quadratic]
+    ffunc_args_array = [1, np.array([0, 1]), np.array([0,0,1])]
     print h, n
-    for ffunc, i in zip(np.array([0, 1, 2]), np.arange(0, 3)):
+    for ffunc_num, i in zip(np.array([0, 1, 2]), np.arange(0, 3)):
         for Nell, j in zip(n, np.arange(n.size)):
 
             # print Nell
             he = np.ones(Nell) / Nell
             Xe = get_node_locations_x(Nell, he)
             K = define_stiffness_matrix(Nell, he)
-            F = define_forcing_vector(Nell, he, ffunc=ffunc)
+            F = define_forcing_vector(Nell, he, ffunc=ffunc_array[ffunc_num], ffunc_args=ffunc_args_array[ffunc_num])
             d = solve_for_d(K, F)
             u = solve_for_displacements(d, Nell, he, g=0)
-            error[i,j] = quadrature(Xe, he, u, ffunc)
-            print "ffunc: %i, Nell: %i, Error: %f" % (ffunc, Nell, error[i, j])
+            error[i,j] = quadrature(Xe, he, u, ffunc_num)
+            print "ffunc: %i, Nell: %i, Error: %f" % (ffunc_num, Nell, error[i, j])
 
     np.savetxt('error.txt', np.c_[n, h, np.transpose(error)], header="Nell, h, E(f(x)=c), E(f(x)=x), E(f(x)=x^2)")
     plt.loglog(h, error[0,:], '-o', label='$f(x)=c$')
@@ -264,7 +287,12 @@ if __name__ == "__main__":
     #
     # input variables
     Nell = 10
-    ffunc = 2
+    # ffunc = ffunc_constant
+    # ffunc = ffunc_linear
+    ffunc = ffunc_quadratic
+    # ffunc_args = np.array([1])
+    # ffunc_args = np.array([0, 1])
+    ffunc_args = np.array([0, 0, 1])
     # for ffunc in np.array([0, 1, 2]):
     #     for Nell in np.array([10, 100]):
     he = np.ones(Nell)/Nell
@@ -281,7 +309,7 @@ if __name__ == "__main__":
     print "Time to define stiffness matrix: %.3f (s)" % (toc-tic)
 
     tic = time.time()
-    F = define_forcing_vector(Nell, he, ffunc=ffunc)
+    F = define_forcing_vector(Nell, he, ffunc=ffunc, ffunc_args=ffunc_args)
     toc = time.time()
     print F
     print np.array([1/96., 1./16., 1/8., 3./16.])
@@ -303,9 +331,9 @@ if __name__ == "__main__":
 
     print "Finished"
 
-    error = quadrature(Xe, he, u, ffunc)
+    error = quadrature(Xe, he, u, ffunc=ffunc, ffunc_args=ffunc_args)
     print error
-    plot_displaccements(u, x, he, Nell, ffunc=ffunc)
+    plot_displaccements(u, x, he, Nell, ffunc=ffunc, ffunc_args=ffunc_args)
 
 
     # pre compute
