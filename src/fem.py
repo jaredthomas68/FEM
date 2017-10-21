@@ -14,7 +14,6 @@ def ffunc_constant(x, a):
     f = a
     return f
 
-
 def ffunc_linear(x, a=np.array([0, 1])):
     """
     Linear forcing function
@@ -77,8 +76,6 @@ def define_forcing_vector(Nell, he, ffunc=ffunc_constant, ffunc_args=np.array([1
             F[e] += f_e[0]
         x1 += he[e]
     return F
-
-
 
 def solve_for_d(K, F):
 
@@ -210,20 +207,20 @@ def x_of_xi(xi, Xe, he, el):
 
     return x
 
-def get_lm(Nell):
+def get_lm(Nell, p=1):
     """
     Populates the location matrix, LM, to track the location of data in the global stiffness matrix, K
     :param Nell: Number of elements
     :return LM: Location matrix for data in the stiffness matrix, K
     """
 
-    LM = np.zeros([2, Nell])
+    LM = np.zeros([p+1, Nell])
 
-    for e in np.arange(0, Nell):
-        LM[0, e] = e + 1
-        LM[1, e] = e + 2
+    for pp in np.arange(0, p+1):
+        for e in np.arange(0, Nell):
+            LM[pp, e] = e + pp + 1
     LM[-1, -1] = 0
-
+    print LM
     return LM
 
 def plot_error():
@@ -277,6 +274,133 @@ def get_slope():
     # print (fx2[-1]-fx2[0])/(h[-1]-h[0])
     return
 
+def run_linear(Nell):
+
+    ffunc = ffunc_linear
+    ffunc_args = np.array([0, 1])
+    he = np.ones(Nell) / Nell
+    x = np.linspace(0, 1, 4 * Nell + 1)
+
+    Xe = get_node_locations_x(Nell, he)
+
+    tic = time.time()
+    K = define_stiffness_matrix(Nell, he)
+    toc = time.time()
+    print he, Nell, K
+    print "Time to define stiffness matrix: %.3f (s)" % (toc - tic)
+
+    tic = time.time()
+    F = define_forcing_vector(Nell, he, ffunc=ffunc, ffunc_args=ffunc_args)
+    toc = time.time()
+    print F
+    print np.array([1 / 96., 1. / 16., 1 / 8., 3. / 16.])
+    print "Time to define forcing vector: %.3f (s)" % (toc - tic)
+
+    tic = time.time()
+    d = solve_for_d(K, F)
+    toc = time.time()
+    print d
+    print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384.])
+    print "Time to solve for d: %.3f (s)" % (toc - tic)
+
+    tic = time.time()
+    u = solve_for_displacements(d, Nell, he, g=0)
+    toc = time.time()
+    print u
+    print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384., 0])
+    print "Time to solve for u(x): %.3f (s)" % (toc - tic)
+
+    print "Finished"
+
+    error = quadrature(Xe, he, u, ffunc_args=ffunc_args)
+    print error
+    plot_displaccements(u, x, he, Nell, ffunc=ffunc, ffunc_args=ffunc_args)
+
+def run_constant(Nell):
+    ffunc = ffunc_constant
+    ffunc_args = np.array([1])
+    he = np.ones(Nell) / Nell
+    x = np.linspace(0, 1, 4 * Nell + 1)
+
+    Xe = get_node_locations_x(Nell, he)
+
+    tic = time.time()
+    K = define_stiffness_matrix(Nell, he)
+    toc = time.time()
+    print he, Nell, K
+    print "Time to define stiffness matrix: %.3f (s)" % (toc - tic)
+
+    tic = time.time()
+    F = define_forcing_vector(Nell, he, ffunc=ffunc, ffunc_args=ffunc_args)
+    toc = time.time()
+    print F
+    # print np.array([1 / 96., 1. / 16., 1 / 8., 3. / 16.])
+    print "Time to define forcing vector: %.3f (s)" % (toc - tic)
+
+    tic = time.time()
+    d = solve_for_d(K, F)
+    toc = time.time()
+    print d
+    # print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384.])
+    print "Time to solve for d: %.3f (s)" % (toc - tic)
+
+    tic = time.time()
+    u = solve_for_displacements(d, Nell, he, g=0)
+    toc = time.time()
+    print u
+    # print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384., 0])
+    print "Time to solve for u(x): %.3f (s)" % (toc - tic)
+
+    print "Finished"
+
+    error = quadrature(Xe, he, u, ffunc_args=ffunc_args)
+    print error
+    plot_displaccements(u, x, he, Nell, ffunc=ffunc, ffunc_args=ffunc_args)
+
+def run_quadratic(Nell):
+
+    ffunc = ffunc_quadratic
+    ffunc_args = np.array([0, 0, 1])
+    he = np.ones(Nell) / Nell
+    x = np.linspace(0, 1, 4 * Nell + 1)
+
+    Xe = get_node_locations_x(Nell, he)
+
+    tic = time.time()
+    K = define_stiffness_matrix(Nell, he)
+    toc = time.time()
+    print he, Nell, K
+    print "Time to define stiffness matrix: %.3f (s)" % (toc - tic)
+
+    tic = time.time()
+    F = define_forcing_vector(Nell, he, ffunc=ffunc, ffunc_args=ffunc_args)
+    toc = time.time()
+    print F
+    print np.array([1 / 96., 1. / 16., 1 / 8., 3. / 16.])
+    print "Time to define forcing vector: %.3f (s)" % (toc - tic)
+
+    tic = time.time()
+    d = solve_for_d(K, F)
+    toc = time.time()
+    print d
+    print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384.])
+    print "Time to solve for d: %.3f (s)" % (toc - tic)
+
+    tic = time.time()
+    u = solve_for_displacements(d, Nell, he, g=0)
+    toc = time.time()
+    print u
+    print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384., 0])
+    print "Time to solve for u(x): %.3f (s)" % (toc - tic)
+
+    print "Finished"
+
+    error = quadrature(Xe, he, u, ffunc_args=ffunc_args)
+    print error
+    plot_displaccements(u, x, he, Nell, ffunc=ffunc, ffunc_args=ffunc_args)
+
+
+
 if __name__ == "__main__":
 
     # get_lm(10)
@@ -286,65 +410,8 @@ if __name__ == "__main__":
     # exit()
     #
     # input variables
-    Nell = 10
-    # ffunc = ffunc_constant
-    # ffunc = ffunc_linear
-    ffunc = ffunc_quadratic
-    # ffunc_args = np.array([1])
-    # ffunc_args = np.array([0, 1])
-    ffunc_args = np.array([0, 0, 1])
-    # for ffunc in np.array([0, 1, 2]):
-    #     for Nell in np.array([10, 100]):
-    he = np.ones(Nell)/Nell
-    x = np.linspace(0, 1, 4*Nell+1)
 
-    Xe = get_node_locations_x(Nell, he)
-    # error
-    # er_4_el = 0.0051
-
-    tic = time.time()
-    K = define_stiffness_matrix(Nell, he)
-    toc = time.time()
-    print he, Nell, K
-    print "Time to define stiffness matrix: %.3f (s)" % (toc-tic)
-
-    tic = time.time()
-    F = define_forcing_vector(Nell, he, ffunc=ffunc, ffunc_args=ffunc_args)
-    toc = time.time()
-    print F
-    print np.array([1/96., 1./16., 1/8., 3./16.])
-    print "Time to define forcing vector: %.3f (s)" % (toc - tic)
-
-    tic = time.time()
-    d = solve_for_d(K, F)
-    toc = time.time()
-    print d
-    print np.array([1./6., 21./128., 7./48., 37./384.])
-    print "Time to solve for d: %.3f (s)" % (toc - tic)
-
-    tic = time.time()
-    u = solve_for_displacements(d, Nell, he, g=0)
-    toc = time.time()
-    print u
-    print np.array([1./6., 21./128., 7./48., 37./384., 0])
-    print "Time to solve for u(x): %.3f (s)" % (toc - tic)
-
-    print "Finished"
-
-    error = quadrature(Xe, he, u, ffunc=ffunc, ffunc_args=ffunc_args)
-    print error
-    plot_displaccements(u, x, he, Nell, ffunc=ffunc, ffunc_args=ffunc_args)
-
-
-    # pre compute
-    # Nnodes = Nell + 1
-
-    # x = 2.0
-    # node = 1
-    # Nodes = np.array([0, 0.5, 1])
-    # Lengths = Nodes/Nodes.size
-    #
-    # x = Nodes[0]
-    #
-    # print x, node, Nodes, Lengths
-    # print basis_functions(x, node, Nodes, Lengths)
+    Nell = 4
+    run_constant(Nell)
+    run_linear(Nell)
+    run_quadratic(Nell)
