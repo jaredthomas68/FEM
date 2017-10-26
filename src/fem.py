@@ -34,12 +34,19 @@ def ffunc_quadratic(x, a=np.array([0, 0, 1])):
     f = a[0] + a[1]*x + a[2]*x**2
     return f
 
-def define_stiffness_matrix(Nell, he):
+def define_stiffness_matrix(Nell, he, Nint):
     k_basis = np.zeros((2,2))
     K = np.zeros((Nell, Nell))
     LM = get_lm(Nell)
 
+    # loop over elements
     for e in np.arange(0, Nell):
+
+        # loop over each interval in element e
+        # for i in np.array([0, Nint]):
+        #     Bi, Bidxi, Bidxidxi = local_B_func(xi[i])
+        #     Ni, Nidxi, Nidxidxi = local_N_func(xi[i], Bi, Bidxi, Bidxidxi)
+        #     Ndx, Ndxdx, j, x = global_func(N[i], Nidxi, Nidxidxi, xe)
 
         # get base k matrix for element e
         for a in np.arange(0, 2):
@@ -121,7 +128,7 @@ def get_node_locations_x(Nell, he):
 
     return x_el
 
-def plot_displaccements(u, x, he, Nell, q=1, ffunc=ffunc_constant, ffunc_args=np.array([1])):
+def plot_displacements(u, x, he, Nell, q=1, ffunc=ffunc_constant, ffunc_args=np.array([1])):
 
     plt.rcParams.update({'font.size': 22})
 
@@ -225,6 +232,7 @@ def get_lm(Nell, p=1):
 
 def plot_error():
 
+    Nint = 1
 
     n = np.array([10, 100, 1000, 10000])
     error = np.zeros([3, n.size])
@@ -239,11 +247,11 @@ def plot_error():
             # print Nell
             he = np.ones(Nell) / Nell
             Xe = get_node_locations_x(Nell, he)
-            K = define_stiffness_matrix(Nell, he)
+            K = define_stiffness_matrix(Nell, he, Nint)
             F = define_forcing_vector(Nell, he, ffunc=ffunc_array[ffunc_num], ffunc_args=ffunc_args_array[ffunc_num])
             d = solve_for_d(K, F)
             u = solve_for_displacements(d, Nell, he, g=0)
-            error[i,j] = quadrature(Xe, he, u, ffunc_num)
+            error[i,j] = quadrature(Xe, he, u, ffunc_args_array)
             print "ffunc: %i, Nell: %i, Error: %f" % (ffunc_num, Nell, error[i, j])
 
     np.savetxt('error.txt', np.c_[n, h, np.transpose(error)], header="Nell, h, E(f(x)=c), E(f(x)=x), E(f(x)=x^2)")
@@ -274,7 +282,7 @@ def get_slope():
     # print (fx2[-1]-fx2[0])/(h[-1]-h[0])
     return
 
-def run_linear(Nell):
+def run_linear(Nell, Nint):
 
     ffunc = ffunc_linear
     ffunc_args = np.array([0, 1])
@@ -284,7 +292,7 @@ def run_linear(Nell):
     Xe = get_node_locations_x(Nell, he)
 
     tic = time.time()
-    K = define_stiffness_matrix(Nell, he)
+    K = define_stiffness_matrix(Nell, he, Nint)
     toc = time.time()
     print he, Nell, K
     print "Time to define stiffness matrix: %.3f (s)" % (toc - tic)
@@ -314,9 +322,9 @@ def run_linear(Nell):
 
     error = quadrature(Xe, he, u, ffunc_args=ffunc_args)
     print error
-    plot_displaccements(u, x, he, Nell, ffunc=ffunc, ffunc_args=ffunc_args)
+    plot_displacements(u, x, he, Nell, ffunc=ffunc, ffunc_args=ffunc_args)
 
-def run_constant(Nell):
+def run_constant(Nell, Nint):
     ffunc = ffunc_constant
     ffunc_args = np.array([1])
     he = np.ones(Nell) / Nell
@@ -325,7 +333,7 @@ def run_constant(Nell):
     Xe = get_node_locations_x(Nell, he)
 
     tic = time.time()
-    K = define_stiffness_matrix(Nell, he)
+    K = define_stiffness_matrix(Nell, he, Nint)
     toc = time.time()
     print he, Nell, K
     print "Time to define stiffness matrix: %.3f (s)" % (toc - tic)
@@ -355,9 +363,9 @@ def run_constant(Nell):
 
     error = quadrature(Xe, he, u, ffunc_args=ffunc_args)
     print error
-    plot_displaccements(u, x, he, Nell, ffunc=ffunc, ffunc_args=ffunc_args)
+    plot_displacements(u, x, he, Nell, ffunc=ffunc, ffunc_args=ffunc_args)
 
-def run_quadratic(Nell):
+def run_quadratic(Nell, Nint):
 
     ffunc = ffunc_quadratic
     ffunc_args = np.array([0, 0, 1])
@@ -367,7 +375,7 @@ def run_quadratic(Nell):
     Xe = get_node_locations_x(Nell, he)
 
     tic = time.time()
-    K = define_stiffness_matrix(Nell, he)
+    K = define_stiffness_matrix(Nell, he, Nint)
     toc = time.time()
     print he, Nell, K
     print "Time to define stiffness matrix: %.3f (s)" % (toc - tic)
@@ -397,7 +405,7 @@ def run_quadratic(Nell):
 
     error = quadrature(Xe, he, u, ffunc_args=ffunc_args)
     print error
-    plot_displaccements(u, x, he, Nell, ffunc=ffunc, ffunc_args=ffunc_args)
+    plot_displacements(u, x, he, Nell, ffunc=ffunc, ffunc_args=ffunc_args)
 
 
 
@@ -411,7 +419,9 @@ if __name__ == "__main__":
     #
     # input variables
 
-    Nell = 4
-    run_constant(Nell)
-    run_linear(Nell)
-    run_quadratic(Nell)
+    p = 2                       # basis function order
+    Nell = 4                    # number of elements
+    Nint = 1                    # number of quadrature intervals
+    run_constant(Nell, Nint)
+    run_linear(Nell, Nint)
+    run_quadratic(Nell, Nint)
