@@ -1,3 +1,4 @@
+import math as m
 import numpy as np
 import scipy.sparse as sparse
 from scipy.sparse.linalg import spsolve
@@ -221,14 +222,14 @@ def get_id(case, Nell, p):
     ID = np.zeros(Nell+p)
 
     if case == 'cantilever L':
-        print 'here in ', case
+        # print 'here in ', case
         ID[0:Nell] = np.arange(1,Nell+1)
 
     if case == 'cantilever R':
-        print 'here in ', case
+        # print 'here in ', case
         ID[p:] = np.arange(1,Nell+1)
 
-    print ID
+    # print ID
     return ID
 
 def get_iem(Nell, p):
@@ -238,6 +239,17 @@ def get_iem(Nell, p):
         IEM[i,:] = np.arange(i+1, i+1+Nell)
 
     return IEM
+
+def local_bernstein(xi, p, a):
+
+    if a < 1 or a > p+1:
+        raise ValueError("incorrect value for a. THe given value was a=%f" %a)
+    if xi < -1 or xi >1:
+        raise ValueError("the value of xi is $f, but must be in the range [-1, 1]" %xi)
+
+    B = (1./(2.**p))*(m.factorial(p)/(m.factorial(a-1.)*m.factorial(p+1.-a)))*((1.-xi)**(p-(a-1.)))*((1+xi)**(a-1.))
+
+    return B
 
 def quadrature(Xe, he, ue, ffunc_args=1):
 
