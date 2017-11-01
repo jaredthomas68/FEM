@@ -216,6 +216,29 @@ def get_greville_abscissae(S, p):
 
     return GA
 
+def get_id(case, Nell, p):
+
+    ID = np.zeros(Nell+p)
+
+    if case == 'cantilever L':
+        print 'here in ', case
+        ID[0:Nell] = np.arange(1,Nell+1)
+
+    if case == 'cantilever R':
+        print 'here in ', case
+        ID[p:] = np.arange(1,Nell+1)
+
+    print ID
+    return ID
+
+def get_iem(Nell, p):
+
+    IEM = np.zeros([p+1, Nell])
+    for i in np.arange(0, p+1):
+        IEM[i,:] = np.arange(i+1, i+1+Nell)
+
+    return IEM
+
 def quadrature(Xe, he, ue, ffunc_args=1):
 
     # print Xe, he, ue, ffunc
@@ -247,20 +270,14 @@ def x_of_xi(xi, Xe, he, el):
 
     return x
 
-def get_lm(Nell, p=1):
-    """
-    Populates the location matrix, LM, to track the location of data in the global stiffness matrix, K
-    :param Nell: Number of elements
-    :return LM: Location matrix for data in the stiffness matrix, K
-    """
+def get_lm(Nell, p, ID, IEM):
 
     LM = np.zeros([p+1, Nell])
 
-    for pp in np.arange(0, p+1):
-        for e in np.arange(0, Nell):
-            LM[pp, e] = e + pp + 1
-    LM[-1, -1] = 0
-    print LM
+    for e in np.arange(0, Nell):
+        for a in range(0, p+1):
+            LM[a, e] = ID[int(IEM[a, e]-1)]
+
     return LM
 
 def plot_error():
