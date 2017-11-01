@@ -183,6 +183,39 @@ def get_u_of_x_exact(x, q, ffunc_num):
 
     return u_ex
 
+def get_knot_vector(Nell, Xe, p, open=True):
+    """
+    Construct knot vector
+    :param Nell: number of elements
+    :param he: array containing the length of each element
+    :param p: order of basis functions
+    :return knots: knot vector
+    """
+
+    # initialize knot vector
+    knots = np.zeros([Nell+2*p+1])
+
+    # populate knot vector
+    if open:
+        knots[0:p+1] = Xe[0]
+        knots[-p-1:] = Xe[-1]
+
+        for i in np.arange(1, Nell):
+            knots[i+p] = Xe[i]
+
+    return knots
+
+def get_greville_abscissae(S, p):
+
+    Nell = len(S) - 2*p - 1
+    GA = np.zeros(Nell+p)
+
+    for i in np.arange(0, Nell+p):
+        GA[i] = (1./p)*(np.sum(S[i+1:i+p+1]))
+        # print i, GA[i], S[i+1:i+p+1], np.sum(S[i+1:i+p+1]), p
+
+    return GA
+
 def quadrature(Xe, he, ue, ffunc_args=1):
 
     # print Xe, he, ue, ffunc
