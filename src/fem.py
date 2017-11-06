@@ -129,6 +129,33 @@ def get_node_locations_x(Nell, he):
 
     return x_el
 
+def get_quadrature_rule(Nint):
+
+    gp = np.zeros(Nint)
+    w = np.zeros(Nint)
+
+    if Nint == 1:
+        gp[0] = 0.
+        w[0] = 2.
+
+    elif Nint == 2:
+        gp[0] = -1./np.sqrt(3.)
+        gp[1] = 1./np.sqrt(3.)
+
+        w[0] = 1.
+        w[1] = 1.
+
+    elif Nint == 3:
+        gp[0] = -np.sqrt(3./5.)
+        gp[1] = 0.
+        gp[2] = np.sqrt(3./5.)
+
+        w[0] = 5./9.
+        w[1] = 8./9.
+        w[2] = 5./9.
+
+    return gp, w
+
 def plot_displacements(u, x, he, Nell, q=1, ffunc=ffunc_constant, ffunc_args=np.array([1])):
 
     plt.rcParams.update({'font.size': 22})
@@ -393,6 +420,20 @@ def local_bezier_extraction(p, e, Nell, B, Bdxi, Bdxidxi):
     Nedxidxi = np.matmul(C, Bdxidxi)
 
     return Ne, Nedxi, Nedxidxi
+
+def global_bezier_extraction(xi, Nedxi, Nedxidxi, Xe1, Xe2):
+
+    # derivative of the change from local to global coordinates
+    jac = (Xe2-Xe1)/2.
+
+    # global x
+    x = Xe1+(xi+1.)*jac
+
+    # derivatives of the basis function in global coordinates
+    Ndx = Nedxi*jac
+    Ndxdx = Nedxidxi*jac
+
+    return Ndx, Ndxdx, jac, x
 
 def quadrature(Xe, he, ue, ffunc_args=1):
 

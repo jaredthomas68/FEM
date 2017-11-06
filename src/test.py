@@ -138,7 +138,7 @@ class test_basis_functions(unittest.TestCase):
 
     def setUp(self):
 
-        p = 2
+        p = 3
         spacing = 1E-3
         xi_a = np.arange(-1,1.,spacing)
         self.B = np.zeros([p+1, len(xi_a)])
