@@ -175,7 +175,7 @@ class test_basis_functions(unittest.TestCase):
         for e in np.arange(1, Nell+1):
             self.N, self.Ndxi, self.Ndxidxi = local_bezier_extraction(p, e, Nell, self.B[:, 0], self.Bdxi[:, 0], self.Bdxidxi[:, 0])
 
-        print self.N, self.Ndxi, self.Ndxidxi
+        # print self.N, self.Ndxi, self.Ndxidxi
 
         #TODO finish testing Bezier extraction
 

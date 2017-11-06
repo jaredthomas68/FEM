@@ -35,33 +35,50 @@ def ffunc_quadratic(x, a=np.array([0, 0, 1])):
     f = a[0] + a[1]*x + a[2]*x**2
     return f
 
-def define_stiffness_matrix(Nell, he, Nint):
-    k_basis = np.zeros((2,2))
+def define_stiffness_matrix(Nell, he, Nint, p, ID, E, I):
+
+    # initialize local and global stiffness matrices
+    k_basis = np.zeros((p+1,p+1))
     K = np.zeros((Nell, Nell))
-    LM = get_lm(Nell)
+
+    # define LM matrix
+    IEM = get_iem(Nell, p)
+    LM = get_lm(Nell, p, ID, IEM)
+
+    # get quadrature points and weights in local coordinants
+    xi, w = get_quadrature_rule(Nint)
+
+    # get node locations in global coordinates
+    xe = get_node_locations_x(Nell, he)
+
+    S = get_knot_vector(Nell, xe, p)
+
+    ga = get_greville_abscissae(S, p)
 
     # loop over elements
-    for e in np.arange(0, Nell):
-
+    for e in np.arange(1, Nell+1):
+        print ga, ga[e-1:e+p]
+        # quit()
         # loop over each interval in element e
-        # for i in np.array([0, Nint]):
-        #     Bi, Bidxi, Bidxidxi = local_B_func(xi[i])
-        #     Ni, Nidxi, Nidxidxi = local_N_func(xi[i], Bi, Bidxi, Bidxidxi)
-        #     Ndx, Ndxdx, j, x = global_func(N[i], Nidxi, Nidxidxi, xe)
+        for i in np.arange(0, Nint):
+            B, Bdxi, Bdxidxi = local_bernstein(xi[i], p)
+            N, Nedxi, Nedxidxi = local_bezier_extraction(p, e, Nell, B, Bdxi, Bdxidxi)
+            Ndx, Ndxdx, dxdxi, x = global_bezier_extraction(ga[e-1:e+p],N[i], Nedxi, Nedxidxi)
 
-        # get base k matrix for element e
-        for a in np.arange(0, 2):
-            for b in np.arange(0, 2):
-                k_basis[a,b] = ((-1)**(a+b))/he[e]
+            # get base k matrix for element e
+            for a in np.arange(0, p+1):
+                for b in np.arange(0, p+1):
+                    # k_basis[a,b] = ((-1)**(a+b))/he[e]
+                    k_basis[a, b] = Ndxdx[a]*E*I*Ndxdx[b]*dxdxi*w[i]
 
         # populate the stifness matrix for entries corresponding to element e
-        for a in np.arange(0, 2):
-            if LM[a, e] == 0:
+        for a in np.arange(0, p+1):
+            if LM[a, e-1] == 0:
                 continue
-            for b in np.arange(0, 2):
-                if LM[b, e] == 0:
+            for b in np.arange(0, p+1):
+                if LM[b, e-1] == 0:
                     continue
-                K[int(LM[a,e]-1), int(LM[b,e]-1)] += k_basis[a,b]
+                K[int(LM[a,e-1]-1), int(LM[b,e-1]-1)] += k_basis[a,b]
 
     return K
 
@@ -125,11 +142,15 @@ def get_node_locations_x(Nell, he):
 
     for e in np.arange(1, Nell):
         x_el[e] = x_el[e-1] + he[e-1]
+
     x_el[Nell] = x_el[Nell-1] + he[Nell-1]
 
     return x_el
 
 def get_quadrature_rule(Nint):
+
+    if (Nint < 1 or Nint > 3) or type(Nint) != int:
+        raise ValueError('Nint must be and integer and one of 1, 2, 3')
 
     gp = np.zeros(Nint)
     w = np.zeros(Nint)
@@ -421,19 +442,20 @@ def local_bezier_extraction(p, e, Nell, B, Bdxi, Bdxidxi):
 
     return Ne, Nedxi, Nedxidxi
 
-def global_bezier_extraction(xi, Nedxi, Nedxidxi, Xe1, Xe2):
+def global_bezier_extraction(GA, Ne, Nedxi, Nedxidxi):
 
-    # derivative of the change from local to global coordinates
-    jac = (Xe2-Xe1)/2.
+    # solve for xe and derivatives
+    xe = np.sum(GA*Ne)
+    print GA, Nedxi
+    dxedxi = np.sum(GA*Nedxi)
 
-    # global x
-    x = Xe1+(xi+1.)*jac
+    dxedxedxidxi = np.sum(GA*Nedxidxi)
 
     # derivatives of the basis function in global coordinates
-    Ndx = Nedxi*jac
-    Ndxdx = Nedxidxi*jac
+    Ndx = Nedxi/dxedxi
+    Ndxdx = (Nedxidxi - Ndx*dxedxedxidxi)/(dxedxi**2)
 
-    return Ndx, Ndxdx, jac, x
+    return Ndx, Ndxdx, dxedxi, xe
 
 def quadrature(Xe, he, ue, ffunc_args=1):
 
@@ -570,16 +592,18 @@ def run_linear(Nell, Nint):
     print error
     plot_displacements(u, x, he, Nell, ffunc=ffunc, ffunc_args=ffunc_args)
 
-def run_constant(Nell, Nint):
+def run_constant(Nell, Nint, p, E=1, I=1):
+
     ffunc = ffunc_constant
     ffunc_args = np.array([1])
     he = np.ones(Nell) / Nell
     x = np.linspace(0, 1, 4 * Nell + 1)
 
+    ID = get_id('cantilever L', Nell, p)
     Xe = get_node_locations_x(Nell, he)
 
     tic = time.time()
-    K = define_stiffness_matrix(Nell, he, Nint)
+    K = define_stiffness_matrix(Nell, he, Nint, p, ID, E, I)
     toc = time.time()
     print he, Nell, K
     print "Time to define stiffness matrix: %.3f (s)" % (toc - tic)
@@ -611,17 +635,18 @@ def run_constant(Nell, Nint):
     print error
     plot_displacements(u, x, he, Nell, ffunc=ffunc, ffunc_args=ffunc_args)
 
-def run_quadratic(Nell, Nint):
+def run_quadratic(Nell, Nint, p, E=1, I=1):
 
     ffunc = ffunc_quadratic
     ffunc_args = np.array([0, 0, 1])
     he = np.ones(Nell) / Nell
     x = np.linspace(0, 1, 4 * Nell + 1)
 
+    ID = get_id('cantilever L', Nell, p)
     Xe = get_node_locations_x(Nell, he)
 
     tic = time.time()
-    K = define_stiffness_matrix(Nell, he, Nint)
+    K = define_stiffness_matrix(Nell, he, Nint, p, ID, E, I)
     toc = time.time()
     print he, Nell, K
     print "Time to define stiffness matrix: %.3f (s)" % (toc - tic)
@@ -668,6 +693,6 @@ if __name__ == "__main__":
     p = 2                       # basis function order
     Nell = 4                    # number of elements
     Nint = 1                    # number of quadrature intervals
-    run_constant(Nell, Nint)
-    run_linear(Nell, Nint)
-    run_quadratic(Nell, Nint)
+    run_constant(Nell, Nint, p)
+    # run_linear(Nell, Nint)
+    run_quadratic(Nell, Nint, p)
