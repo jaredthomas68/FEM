@@ -134,25 +134,63 @@ class test_setup_functions(unittest.TestCase):
                                                         [0., 1., 2., 3., 4., 5., 6., 7., 8., 9.],
                                                         [1., 2., 3., 4., 5., 6., 7., 8., 9., 10.]]))
 
-class test_loop_functions(unittest.TestCase):
+class test_basis_functions(unittest.TestCase):
 
     def setUp(self):
 
-        Nell = 4
         p = 2
-        case = 'cantilever L'
-        he = np.ones(Nell) / Nell
-        self.Xe_4_2 = Xe_4_2 = get_node_locations_x(Nell, he)
-        self.knots_4_2 = knots_4_2 = get_knot_vector(Nell, Xe_4_2, p)
-        self.GA_4_2 = GA_4_2 = get_greville_abscissae(self.knots_4_2, p)
-        self.ID_4_2 = ID_4_2 = get_id(case, Nell, p)
-        self.IEM_4_2 = IEM_4_2 = get_iem(Nell, p)
-        self.LM_4_2 = LM_4_2 = get_lm(Nell, p, ID_4_2, IEM_4_2)
+        spacing = 1E-3
+        xi_a = np.arange(-1,1.,spacing)
+        self.B = np.zeros([p+1, len(xi_a)])
+        self.Bdxi = np.zeros([p+1, len(xi_a)])
+        self.Bdxidxi = np.zeros([p+1, len(xi_a)])
+        for xi, i in zip(xi_a, np.arange(0, len(xi_a))):
+            self.B[:, i], self.Bdxi[:, i], self.Bdxidxi[:, i] = local_bernstein(xi, p)
 
-        B = local_bernstein(0, p, 1)
-        print B
-    def testing_Xe(self):
-        np.testing.assert_equal(self.Xe_4_2, np.array([0., 0.25, 0.5, 0.75, 1.0]))
+        self.Bdxi_fd = np.gradient(self.B, spacing, axis=1)
+        self.Bdxidxi_fd = np.gradient(self.Bdxi, spacing, axis=1)
+
+        # plot Bernstein basis
+        # for c in np.arange(0, p+1):
+        #     plt.plot(xi_a, self.B[c, :], '--', label='Bdxi[%i]' %c)
+        # for c in np.arange(0, p + 1):
+        #     plt.plot(xi_a, self.Bdxi[c, :], '--', label='Bdxidxi[%i]' %c)
+        # plt.legend()
+        # plt.show()
+
+        # plt.plot(xi_a, self.Bdxi[0, :], label='Bdxi[%i]' % 0)
+        # plt.show()
+        # print self.Bdxi_fd.shape, self.Bdxi.shape
+        # print self.Bdxi
+        # print self.Bdxi_fd
+
+        # print 'derivatives:'
+        # print self.Bdxi_fd[:, 0], self.Bdxi_fd[:, -1]
+        # print self.Bdxidxi_fd[:, 0], self.Bdxidxi_fd[:, -1]
+        # def testing_B(self):
+        #     np.testing.assert_equal(self.Bdxi, self.Bdxi_fd, rtol=1E-5)
+
+        # set up to test Bezier extraction
+        Nell = 6
+        for e in np.arange(1, Nell+1):
+            self.N, self.Ndxi, self.Ndxidxi = local_bezier_extraction(p, e, Nell, self.B[:, 0], self.Bdxi[:, 0], self.Bdxidxi[:, 0])
+
+        print self.N, self.Ndxi, self.Ndxidxi
+
+        #TODO finish testing Bezier extraction
+
+
+    def testing_Bdxi(self):
+        np.testing.assert_allclose(self.Bdxi, self.Bdxi_fd, rtol=1E-3, atol=1E-3)
+
+    def testing_Bdxidxi(self):
+        np.testing.assert_allclose(self.Bdxi, self.Bdxi_fd, rtol=1E-3, atol=1E-3)
+
+    # def testing_Ndxi(self):
+    #     np.testing.assert_allclose(__, __, rtol=1E-3, atol=1E-3)
+    #
+    # def testing_Ndxidxi(self):
+    #     np.testing.assert_allclose(__, __, rtol=1E-3, atol=1E-3)
 
 if __name__ == "__main__":
 

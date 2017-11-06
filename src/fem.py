@@ -240,16 +240,159 @@ def get_iem(Nell, p):
 
     return IEM
 
-def local_bernstein(xi, p, a):
+def local_bernstein(xi, p):
 
-    if a < 1 or a > p+1:
-        raise ValueError("incorrect value for a. THe given value was a=%f" %a)
-    if xi < -1 or xi >1:
+    # check if xi is in the acceptable range
+    if np.any(xi < -1) or np.any(xi >1):
         raise ValueError("the value of xi is $f, but must be in the range [-1, 1]" %xi)
 
-    B = (1./(2.**p))*(m.factorial(p)/(m.factorial(a-1.)*m.factorial(p+1.-a)))*((1.-xi)**(p-(a-1.)))*((1+xi)**(a-1.))
+    # check if p is in the acceptable range for this code
+    if p > 3 or p < 2:
+        raise ValueError("the value of p must be 2 or 3, but %i was given" % p)
 
-    return B
+    # initialize Bernstein polynomial vectors
+    B = np.zeros(p+1)
+    Bdxi = np.zeros(p+1)
+    Bdxidxi = np.zeros(p+1)
+
+    for a in np.arange(1, p + 2):
+        # compute common factor of B and it's derivatives
+        eta = (1. / (2. ** p)) * (m.factorial(p) / (m.factorial(a - 1.) * m.factorial(p + 1. - a)))
+
+        # calculate the value and derivatives of each element of the Bernstein polynomial vector
+        # print eta*((1.-xi)**(p-(a-1.)))*((1+xi)**(a-1.))
+        B[a - 1] = eta * ((1. - xi) ** (p - (a - 1.))) * ((1 + xi) ** (a - 1.))
+
+
+    if xi == -1.:
+        if p == 2:
+            Bdxi[0] = -1.
+            Bdxi[1] = 1.
+            Bdxi[2] = 0.
+
+            Bdxidxi[0] = 0.5
+            Bdxidxi[1] = -1.0
+            Bdxidxi[2] = 0.5
+        elif p == 3:
+            Bdxi[0] = -1.5
+            Bdxi[1] = 1.5
+            Bdxi[2] = 0.
+            Bdxi[3] = 0.
+
+            Bdxidxi[0] = 1.5
+            Bdxidxi[1] = -3.
+            Bdxidxi[2] = 1.5
+            Bdxidxi[3] = 0.
+
+    elif xi == 1.:
+        if p == 2:
+            Bdxi[0] = 0.
+            Bdxi[1] = -1.
+            Bdxi[2] = 1.
+
+            Bdxidxi[0] = 0.5
+            Bdxidxi[1] = -1.0
+            Bdxidxi[2] = 0.5
+        if p == 3:
+            Bdxi[0] = 0.
+            Bdxi[1] = 0.
+            Bdxi[2] = -1.5
+            Bdxi[3] = 1.5
+
+            Bdxidxi[0] = 0.
+            Bdxidxi[1] = 1.5
+            Bdxidxi[2] = -3.
+            Bdxidxi[3] = 1.5
+
+    else:
+        # solve for the Bernstein polynomial vectors
+        for a in np.arange(1, p+2):
+
+            # compute common factor of B and it's derivatives
+            eta = (1./(2.**p))*(m.factorial(p)/(m.factorial(a-1.)*m.factorial(p+1.-a)))
+
+            # calculate the value and derivatives of each element of the Bernstein polynomial vector
+            # print eta*((1.-xi)**(p-(a-1.)))*((1+xi)**(a-1.))
+            # B[a-1] = eta*((1.-xi)**(p-(a-1.)))*((1+xi)**(a-1.))
+
+            Bdxi[a-1] = eta*(((1.-xi)**(p-a+1.))*(a-1.)*((1.+xi)**(a-2.))-
+                             ((1.+xi)**(a-1.))*(p-a+1.)*((1.-xi)**(p-a)))
+
+            # set up terms for second derivative
+            t1 = ((1.-xi)**(p-a+1))*(a-2.)*((1+xi)**(a-3.))
+            t2 = -((1.+xi)**(a-2.))*(p-a+1.)*((1.-xi)**(p-a))
+            t3 = -((1.+xi)**(a-1.))*(p-a)*((1.-xi)**(p-a-1.))
+            t4 = ((1.-xi)**(p-a))*(a-1.)*((1.+xi)**(a-2.))
+
+            Bdxidxi[a-1] = eta*((a-1.)*(t1+t2)-(p-a+1.)*(t3+t4))
+
+    return B, Bdxi, Bdxidxi
+
+def local_bezier_extraction(p, e, Nell, B, Bdxi, Bdxidxi):
+
+    # determine the appropriate Bezier extraction matrix
+    if p == 2:
+        if e == 1:
+            C = np.array([[1., 0., 0. ],
+                          [0., 1., 0.5],
+                          [0., 0., 0.5]])
+
+        elif e >=2 and e <= Nell-1.:
+            C = np.array([[0.5, 0., 0. ],
+                          [0.5, 1., 0.5],
+                          [0., 0.,  0.5]])
+
+        elif e == Nell:
+            C = np.array([[0.5, 0., 0.],
+                          [0.5, 1., 0.],
+                          [0.,  0., 1.]])
+
+        else:
+            raise ValueError('Invalid value of e. Must be in [1, %i], but %i was given' % (Nell,e))
+
+    elif p == 3:
+        if e == 1:
+            C = np.array([[1., 0., 0.,  0.    ],
+                          [0., 1., 0.5, 0.25  ],
+                          [0., 0., 0.5, 7./12.],
+                          [0., 0., 0.,  0.25  ]])
+
+        elif e == 2:
+            C = np.array([[0.25,   0.,    0.,    0.   ],
+                          [7./12., 2./3., 1./3., 1./6.],
+                          [1./6.,  1./3., 2./3., 2./3.],
+                          [0.,     0.,    0.,    1./6.]])
+
+        elif e >= 3 and e <= Nell-2:
+            C = np.array([[1./6.,  0.,    0.,    0.   ],
+                          [2./3.,  2./3., 1./3., 1./6.],
+                          [1./6.,  1./3., 2./3., 2./3.],
+                          [0.,     0.,    0.,    1./6.]])
+
+        elif e == Nell-1.:
+            C = np.array([[1./6., 0.,    0.,    0.    ],
+                          [2./3., 2./3., 1./3., 1./6. ],
+                          [1./6., 1./3., 2./3., 7./12.],
+                          [0.,    0.,    0.,    0.25  ]])
+
+        elif e == Nell:
+            C = np.array([[1./6.,  0.,  0., 0.],
+                          [7./12., 0.5, 0., 0.],
+                          [0.25,   0.5, 1., 0.],
+                          [0.,     0.,  0., 1.]])
+        else:
+            raise ValueError('Invalid value of e. Must be in [1, %i], but %i was given' % (Nell, e))
+    else:
+        raise ValueError('p must be 2 or 3, but p=%f was given' % p)
+
+    # solve for the value of the Bezier basis function and derivatives on the element (Ne)
+    Ne = np.matmul(C, B)
+
+    Nedxi = np.matmul(C, Bdxi)
+
+    Nedxidxi = np.matmul(C, Bdxidxi)
+
+    return Ne, Nedxi, Nedxidxi
 
 def quadrature(Xe, he, ue, ffunc_args=1):
 
