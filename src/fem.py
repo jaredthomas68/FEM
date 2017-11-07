@@ -35,34 +35,36 @@ def ffunc_quadratic(x, a=np.array([0, 0, 1])):
     f = a[0] + a[1]*x + a[2]*x**2
     return f
 
-def define_stiffness_and_force_matrices(Nell, he, Nint, p, ID, E, I, ffunc):
+def fem_solver(Nell, he, Nint, p, ID, E, I, ffunc=ffunc_quadratic, ffunc_args=np.array([0., 0., 1.])):
 
-    # define LM matrix
-    IEM = get_iem(Nell, p)
-    LM = get_lm(Nell, p, ID, IEM)
-    # quit()
-    # initialize local and global stiffness matrices
+    # define LM array
+    IEM = iem_array(Nell, p)
+    LM = lm_array(Nell, p, ID, IEM)
 
+    # initialize global stiffness matrix
     K = np.zeros((ID[ID[:]>0].size, ID[ID[:]>0].size))
 
+    # initialize global force vector
+    F = np.zeros(ID[ID[:] > 0].size)
+
     # get quadrature points and weights in local coordinants
-    xi, w = get_quadrature_rule(Nint)
+    xi, w = quadrature_rule(Nint)
 
     # get node locations in global coordinates
-    xe = get_node_locations_x(Nell, he)
+    xe = node_locations_x(Nell, he)
 
-    S = get_knot_vector(Nell, xe, p)
+    # get the knot vector
+    S = knot_vector(Nell, xe, p)
 
-    ga = get_greville_abscissae(S, p)
-
-    F = np.zeros(ID[ID[:] > 0].size)
+    # find the Greville Abscissae
+    ga = greville_abscissae(S, p)
 
     # loop over elements
     for e in np.arange(1, Nell+1):
-        k_basis = np.zeros((p + 1, p + 1))
-        print ga, ga[e-1:e+p]
-        # quit()
-        # loop over each interval in element e
+        ke = np.zeros((p + 1, p + 1))
+        fe = np.zeros(p + 1)
+
+        # solve for local stifness matrix and force vector
         for i in np.arange(0, Nint):
             B, Bdxi, Bdxidxi = local_bernstein(xi[i], p)
             N, Nedxi, Nedxidxi = local_bezier_extraction(p, e, Nell, B, Bdxi, Bdxidxi)
@@ -77,93 +79,33 @@ def define_stiffness_and_force_matrices(Nell, he, Nint, p, ID, E, I, ffunc):
                         continue
                     # k_basis[a,b] = ((-1)**(a+b))/he[e]
                     # k_basis[a, b] = Ndxdx[a]*E*I*Ndxdx[b]*dxdxi*w[i]
-                    # k_basis[a, b] += Ndx[a]*E*I*Ndx[b]*w[i]*dxdxi
-                    K[int(LM[a, e - 1] - 1), int(LM[b, e - 1] - 1)] += Ndx[a]*E*I*Ndx[b]*w[i]*dxdxi
+                    ke[a, b] += Ndx[a]*E*I*Ndx[b]*w[i]*dxdxi
+                    # K[int(LM[a, e - 1] - 1), int(LM[b, e - 1] - 1)] += Ndx[a]*E*I*Ndx[b]*w[i]*dxdxi
+                fe[a] += N[a] * ffunc(x, ffunc_args) * dxdxi * w[i]
 
-                F[int(LM[a, e - 1] - 1)] += N[a]*ffunc(x)*dxdxi*w[i]
+        # assemble global stifness matrix and force vector
+        for a in np.arange(0, p + 1):
+            if LM[a, e - 1] == 0:
+                continue
+            for b in np.arange(0, p + 1):
+                if LM[b, e - 1] == 0:
+                    continue
+                # k_basis[a,b] = ((-1)**(a+b))/he[e]
+                # k_basis[a, b] = Ndxdx[a]*E*I*Ndxdx[b]*dxdxi*w[i]
+                # k_e[a, b] += Ndx[a] * E * I * Ndx[b] * w[i] * dxdxi
 
+                # global stiffness matrix
+                K[int(LM[a, e - 1] - 1), int(LM[b, e - 1] - 1)] += ke[a, b]
+
+            # global force vector
+            F[int(LM[a, e - 1] - 1)] += fe[a]
+
+    # solve for d
     d = solve_for_d(K, F)
 
-    # Nnodes = ga.size
-    # sol = np.zeros(Nnodes)
-    # # d = np.append(d,0.0)
-    # for A in np.arange(0, int(Nnodes)):
-    #     if ID[A] == 0:
-    #         continue
-    #     else:
-    #         sol[A] = d[int(ID[A])]
-    #
-    # sol = np.zeros()
-    #
-    # u = np.zeros(ID[ID[:]>0].size)
-    # u[0] = d[0]*dxdxi
-    # for e in np.arange(1, Nell):
-    #     B, Bdxi, Bdxidxi = local_bernstein(1., p)
-    #     N, Nedxi, Nedxidxi = local_bezier_extraction(p, e, Nell, B, Bdxi, Bdxidxi)
-    #     Ndx, Ndxdx, dxdxi, x = global_bezier_extraction(ga[e - 1:e + p], N[i], Nedxi, Nedxidxi)
-    #     dslice = d[e-1:e+p]
-    #     print N, dslice
-    #     # quit()
-    #     product = N*dslice
-    #     u[e] = np.sum(product)*dxdxi
-    # B, Bdxi, Bdxidxi = local_bernstein(1., p)
-    # N, Nedxi, Nedxidxi = local_bezier_extraction(p, Nell, Nell, B, Bdxi, Bdxidxi)
-    # Ndx, Ndxdx, dxdxi, x = global_bezier_extraction(ga[e - 1:e + p], N[i], Nedxi, Nedxidxi)
-    # u[Nell] = np.sum(N[:2]*d[Nell-1:])#*dxdxi
-    # print N[:2], d[Nell-1:]
-    # print u
-    # # print F
-    # quit()
-        # establish local forcing function vector
-        # f_e = np.zeros(p + 1)
-
-        # populate the stifness matrix for entries corresponding to element e
-        # for a in np.arange(0, p+1):
-        #     if LM[a, e-1] == 0:
-        #         continue
-        #     for b in np.arange(0, p+1):
-        #         if LM[b, e-1] == 0:
-        #             continue
-        #         # print int(LM[a,e-1]-1), int(LM[b,e-1]-1)
-        #         # print LM
-        #         K[int(LM[a,e-1]-1), int(LM[b,e-1]-1)] += k_basis[a,b]
-
-    # print K
-    # quit()
     return K, F, d
 
-def define_forcing_vector(Nell, Nint, he, ID, ffunc=ffunc_constant, ffunc_args=np.array([1])):
-
-    f_e = np.zeros(p+1)
-    F = np.zeros(ID[ID[:]>0].size)
-
-    # x1 = 0.
-    # for e in np.arange(0, Nell):
-    #     x2 = x1 + he[e]
-    #     f_e = (he[e]/6.)*np.array([2.*ffunc(x1, ffunc_args) + ffunc(x2, ffunc_args),
-    #                               ffunc(x1, ffunc_args) + 2.*ffunc(x2, ffunc_args)])
-    #     if e == 0:
-    #         F[e] = f_e[0]
-    #         F[e+1] = f_e[1]
-    #     elif e < Nell - 1:
-    #         F[e] += f_e[0]
-    #         F[e+1] = f_e[1]
-    #     else:
-    #         F[e] += f_e[0]
-    #     x1 += he[e]
-
-    # for i in np.arange(0, Nint)
-
-    return F
-
 def solve_for_d(K, F):
-
-    # Kd = F
-    # sK = sparse.csr_matrix(K)
-    # sK = sparse.csr_matrix(F)
-
-    # d = np.matmul(np.linalg.inv(K),F)
-    # print d
 
     sK = sparse.csr_matrix(K)
     d = spsolve(sK, F)
@@ -190,7 +132,7 @@ def solve_for_displacements(d, Nell, he, g=0):
 
     return u
 
-def get_node_locations_x(Nell, he):
+def node_locations_x(Nell, he):
 
     x_el = np.zeros(Nell + 1)
 
@@ -201,7 +143,7 @@ def get_node_locations_x(Nell, he):
 
     return x_el
 
-def get_quadrature_rule(Nint):
+def quadrature_rule(Nint):
 
     if (Nint < 1 or Nint > 3) or type(Nint) != int:
         raise ValueError('Nint must be and integer and one of 1, 2, 3')
@@ -231,34 +173,8 @@ def get_quadrature_rule(Nint):
 
     return gp, w
 
-def plot_displacements(u, x, he, Nell, q=1, ffunc=ffunc_constant, ffunc_args=np.array([1])):
-
-    plt.rcParams.update({'font.size': 22})
-
-    x_ex = np.linspace(0, 1., 100)
-
-    x_el = get_node_locations_x(Nell, he)
-
-    u_ex = get_u_of_x_exact(x_ex, q, ffunc_num=len(ffunc_args)-1)
-
-    u_a = get_u_of_x_approx(x, u, he)
-    plt.figure()
-    plt.plot(x_ex, u_ex, label="Exact sol.", linewidth=3)
-    # plt.plot(x_el, u, '-s', label="Approx. sol. (nodes)")
-    plt.plot(x, u_a, '--r', markerfacecolor='none', label="Approx. sol.", linewidth=3)
-
-    plt.xlabel('X Position')
-    plt.ylabel("Displacement")
-    functions = ["$f(x)=c$", "$f(x)=x$", "$f(x)=x^2$"]
-    # plt.title(functions[ffunc]+", $n=%i$" %Nell, y=1.02)
-    plt.legend(loc=3, frameon=False)
-    plt.tight_layout()
-    # plt.savefig("displacement_func%i_Nell%i.pdf" %(ffunc, Nell))
-    plt.show()
-    plt.close()
-    return
-
 def get_u_of_x_approx(Xp, u, he):
+
     Nell = he.size
     Xn = np.zeros(Nell+1)
     for e in np.arange(1, Nell+1):
@@ -286,7 +202,7 @@ def get_u_of_x_exact(x, q, ffunc_num):
 
     return u_ex
 
-def get_knot_vector(Nell, Xe, p, open=True):
+def knot_vector(Nell, Xe, p, open=True):
     """
     Construct knot vector
     :param Nell: number of elements
@@ -308,7 +224,7 @@ def get_knot_vector(Nell, Xe, p, open=True):
 
     return knots
 
-def get_greville_abscissae(S, p):
+def greville_abscissae(S, p):
 
     Nell = len(S) - 2*p - 1
     GA = np.zeros(Nell+p)
@@ -337,7 +253,7 @@ def get_id(case, Nell, p):
     # quit()
     return ID
 
-def get_iem(Nell, p):
+def iem_array(Nell, p):
 
     IEM = np.zeros([p+1, Nell])
     for i in np.arange(0, p+1):
@@ -518,7 +434,7 @@ def global_bezier_extraction(GA, Ne, Nedxi, Nedxidxi):
 
     return Ndx, Ndxdx, dxedxi, xe
 
-def quadrature(Xe, he, ue, ffunc_args=1):
+def quadrature(Xe, he, ue, ffunc_args=np.array([0., 0., 1.])):
 
     # print Xe, he, ue, ffunc
     # quit()
@@ -542,14 +458,7 @@ def quadrature(Xe, he, ue, ffunc_args=1):
 
     return error
 
-def x_of_xi(xi, Xe, he, el):
-    # print xi, Xe.size, he, el
-    # quit()
-    x = (he[el]*xi+Xe[el]+Xe[el+1])/2.
-
-    return x
-
-def get_lm(Nell, p, ID, IEM):
+def lm_array(Nell, p, ID, IEM):
 
     LM = np.zeros([p+1, Nell])
 
@@ -561,34 +470,56 @@ def get_lm(Nell, p, ID, IEM):
 
 def plot_error():
 
-    Nint = 1
+    E = I = 1.
 
-    n = np.array([10, 100, 1000, 10000])
-    error = np.zeros([3, n.size])
-    h = np.ones(n.size)/n
+    Nint = 3
 
-    ffunc_array = [ffunc_constant, ffunc_linear, ffunc_quadratic]
-    ffunc_args_array = [1, np.array([0, 1]), np.array([0,0,1])]
-    print h, n
-    for ffunc_num, i in zip(np.array([0, 1, 2]), np.arange(0, 3)):
+    n = np.array([1, 10, 100, 1000])
+
+    error = np.zeros([2, n.size])
+
+    q = 1
+
+    h = np.zeros([2, 4])
+
+    nodes = np.zeros([2, 4])
+    # print h, n
+    for p, i in zip(np.array([2, 3]), np.arange(0, 2)):
         for Nell, j in zip(n, np.arange(n.size)):
 
-            # print Nell
-            he = np.ones(Nell) / Nell
-            Xe = get_node_locations_x(Nell, he)
-            K = define_stiffness_matrix(Nell, he, Nint)
-            F = define_forcing_vector(Nell, he, ffunc=ffunc_array[ffunc_num], ffunc_args=ffunc_args_array[ffunc_num])
-            d = solve_for_d(K, F)
-            u = solve_for_displacements(d, Nell, he, g=0)
-            error[i,j] = quadrature(Xe, he, u, ffunc_args_array)
-            print "ffunc: %i, Nell: %i, Error: %f" % (ffunc_num, Nell, error[i, j])
+            nodes[i,j] = Nell + p
 
-    np.savetxt('error.txt', np.c_[n, h, np.transpose(error)], header="Nell, h, E(f(x)=c), E(f(x)=x), E(f(x)=x^2)")
-    plt.loglog(h, error[0,:], '-o', label='$f(x)=c$')
-    plt.loglog(h, error[1,:], '-o', label='$f(x)=x$')
-    plt.loglog(h, error[2,:], '-o', label='$f(x)=x^2$')
+            he = np.ones(Nell) / Nell
+            h[i, j] = he[0]
+            x = np.linspace(0, 1, 4 * Nell + 1)
+
+            ID = get_id('coding two part one', Nell, p)
+
+            K, F, d = fem_solver(Nell, he, Nint, p, ID, E, I)
+
+            u = solve_for_displacements(d, Nell, he, g=0)
+
+            u_ap = get_u_of_x_approx(x, u, he)
+            u_ex = get_u_of_x_exact(x, q, 2)
+            print u_ap, u_ex
+            error[i, j] = np.sum((u_ap - u_ex)**2)
+            # print "ffunc: %i, Nell: %i, Error: %f" % (ffunc_num, Nell, error[i, j])
+
+    # np.savetxt('error.txt', np.c_[n, he, np.transpose(error)], header="Nell, h, E(f(x)=c), E(f(x)=x), E(f(x)=x^2)")
+    print he.shape, error.shape
+    plt.loglog(h[0, :], error[0,:], '-o', label='$p=2$')
+    plt.loglog(h[1, :], error[1,:], '-o', label='$p=3$')
+    # plt.loglog(he, error[2,:], '-o', label='$f(x)=x^2$')
     plt.legend(loc=2)
     plt.xlabel('$h$')
+    plt.ylabel('$Error$')
+    plt.show()
+
+    plt.loglog(nodes[0, :], error[0, :], '-o', label='$p=2$')
+    plt.loglog(nodes[1, :], error[1, :], '-o', label='$p=3$')
+    # plt.loglog(he, error[2,:], '-o', label='$f(x)=x^2$')
+    plt.legend(loc=2)
+    plt.xlabel('$Nodes$')
     plt.ylabel('$Error$')
     plt.show()
     return
@@ -611,47 +542,61 @@ def get_slope():
     # print (fx2[-1]-fx2[0])/(h[-1]-h[0])
     return
 
+def plot_displacements(u, x, he, Nell, q=1, ffunc=ffunc_constant, ffunc_args=np.array([1])):
+
+    plt.rcParams.update({'font.size': 22})
+
+    x_ex = np.linspace(0, 1., 100)
+
+    x_el = node_locations_x(Nell, he)
+
+    u_ex = get_u_of_x_exact(x_ex, q, ffunc_num=len(ffunc_args)-1)
+
+    u_a = get_u_of_x_approx(x, u, he)
+
+    plt.figure()
+    plt.plot(x_ex, u_ex, label="Exact sol.", linewidth=3)
+    # plt.plot(x_el, u, '-s', label="Approx. sol. (nodes)")
+    plt.plot(x, u_a, '--r', markerfacecolor='none', label="Approx. sol.", linewidth=3)
+
+    plt.xlabel('X Position')
+    plt.ylabel("Displacement")
+    functions = ["$f(x)=c$", "$f(x)=x$", "$f(x)=x^2$"]
+    # plt.title(functions[ffunc]+", $n=%i$" %Nell, y=1.02)
+    plt.legend(loc=3, frameon=False)
+    plt.tight_layout()
+    # plt.savefig("displacement_func%i_Nell%i.pdf" %(ffunc, Nell))
+    plt.show()
+    plt.close()
+    return
+
 def run_constant(Nell, Nint, p, E=1, I=1):
 
     ffunc = ffunc_constant
-    ffunc_args = np.array([1])
+    ffunc_args = np.array([1.])
     he = np.ones(Nell) / Nell
     x = np.linspace(0, 1, 4 * Nell + 1)
 
     ID = get_id('coding two part one', Nell, p)
-    Xe = get_node_locations_x(Nell, he)
+    Xe = node_locations_x(Nell, he)
 
     tic = time.time()
-    K = define_stiffness_matrix(Nell, he, Nint, p, ID, E, I)
+    K, F, d = fem_solver(Nell, he, Nint, p, ID, E, I, ffunc, ffunc_args)
     toc = time.time()
     print he, Nell, K
-    print "Time to define stiffness matrix: %.3f (s)" % (toc - tic)
-
-    tic = time.time()
-    F = define_forcing_vector(Nell, he, ID, ffunc=ffunc, ffunc_args=ffunc_args)
-    toc = time.time()
-    print F
-    # print np.array([1 / 96., 1. / 16., 1 / 8., 3. / 16.])
-    print "Time to define forcing vector: %.3f (s)" % (toc - tic)
-
-    tic = time.time()
-    d = solve_for_d(K, F)
-    toc = time.time()
-    print d
-    # print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384.])
-    print "Time to solve for d: %.3f (s)" % (toc - tic)
+    print "Time to run fem solver: %.3f (s)" % (toc - tic)
 
     tic = time.time()
     u = solve_for_displacements(d, Nell, he, g=0)
     toc = time.time()
     print u
-    # print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384., 0])
+    print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384., 0])
     print "Time to solve for u(x): %.3f (s)" % (toc - tic)
 
     print "Finished"
 
-    error = quadrature(Xe, he, u, ffunc_args=ffunc_args)
-    print error
+    # error = quadrature(Xe, he, u, ffunc_args=ffunc_args)
+    # print error
     plot_displacements(u, x, he, Nell, ffunc=ffunc, ffunc_args=ffunc_args)
 
 def run_linear(Nell, Nint, p, E=1, I=1):
@@ -662,27 +607,13 @@ def run_linear(Nell, Nint, p, E=1, I=1):
     x = np.linspace(0, 1, 4 * Nell + 1)
 
     ID = get_id('coding two part one', Nell, p)
-    Xe = get_node_locations_x(Nell, he)
+    Xe = node_locations_x(Nell, he)
 
     tic = time.time()
-    K = define_stiffness_matrix(Nell, he, Nint, p, ID, E, I)
+    K, F, d = fem_solver(Nell, he, Nint, p, ID, E, I, ffunc, ffunc_args)
     toc = time.time()
     print he, Nell, K
-    print "Time to define stiffness matrix: %.3f (s)" % (toc - tic)
-
-    tic = time.time()
-    F = define_forcing_vector(Nell, he, ID, ffunc=ffunc, ffunc_args=ffunc_args)
-    toc = time.time()
-    print F
-    print np.array([1 / 96., 1. / 16., 1 / 8., 3. / 16.])
-    print "Time to define forcing vector: %.3f (s)" % (toc - tic)
-
-    tic = time.time()
-    d = solve_for_d(K, F)
-    toc = time.time()
-    print d
-    print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384.])
-    print "Time to solve for d: %.3f (s)" % (toc - tic)
+    print "Time to run fem solver: %.3f (s)" % (toc - tic)
 
     tic = time.time()
     u = solve_for_displacements(d, Nell, he, g=0)
@@ -693,8 +624,8 @@ def run_linear(Nell, Nint, p, E=1, I=1):
 
     print "Finished"
 
-    error = quadrature(Xe, he, u, ffunc_args=ffunc_args)
-    print error
+    # error = quadrature(Xe, he, u, ffunc_args=ffunc_args)
+    # print error
     plot_displacements(u, x, he, Nell, ffunc=ffunc, ffunc_args=ffunc_args)
 
 def run_quadratic(Nell, Nint, p, E=1, I=1):
@@ -705,27 +636,13 @@ def run_quadratic(Nell, Nint, p, E=1, I=1):
     x = np.linspace(0, 1, 4 * Nell + 1)
 
     ID = get_id('coding two part one', Nell, p)
-    Xe = get_node_locations_x(Nell, he)
+    Xe = node_locations_x(Nell, he)
 
     tic = time.time()
-    K, F, d = define_stiffness_and_force_matrices(Nell, he, Nint, p, ID, E, I, ffunc)
+    K, F, d = fem_solver(Nell, he, Nint, p, ID, E, I, ffunc)
     toc = time.time()
     print he, Nell, K
-    print "Time to define stiffness matrix: %.3f (s)" % (toc - tic)
-
-    # tic = time.time()
-    # F = define_forcing_vector(Nell, he, ID, ffunc=ffunc, ffunc_args=ffunc_args)
-    # toc = time.time()
-    print F
-    print np.array([1 / 96., 1. / 16., 1 / 8., 3. / 16.])
-    # print "Time to define forcing vector: %.3f (s)" % (toc - tic)
-
-    tic = time.time()
-    # d = solve_for_d(K, F)
-    toc = time.time()
-    # print d
-    print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384.])
-    print "Time to solve for d: %.3f (s)" % (toc - tic)
+    print "Time to run fem solver: %.3f (s)" % (toc - tic)
 
     tic = time.time()
     u = solve_for_displacements(d, Nell, he, g=0)
@@ -736,8 +653,8 @@ def run_quadratic(Nell, Nint, p, E=1, I=1):
 
     print "Finished"
 
-    error = quadrature(Xe, he, u, ffunc_args=ffunc_args)
-    print error
+    # error = quadrature(Xe, he, u, ffunc_args=ffunc_args)
+    # print error
     plot_displacements(u, x, he, Nell, ffunc=ffunc, ffunc_args=ffunc_args)
 
 
@@ -747,14 +664,14 @@ if __name__ == "__main__":
     # get_lm(10)
     # get_slope()
     # exit()
-    # plot_error()
+    plot_error()
     # exit()
     #
     # input variables
 
-    p = 3                       # basis function order
-    Nell = 1000                    # number of elements
-    Nint = 3                    # number of quadrature intervals
+    # p = 3                       # basis function order
+    # Nell = 1000                    # number of elements
+    # Nint = 2                    # number of quadrature intervals
     # run_constant(Nell, Nint, p)
     # run_linear(Nell, Nint, p)
-    run_quadratic(Nell, Nint, p)
+    # run_quadratic(Nell, Nint, p)

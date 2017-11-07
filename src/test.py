@@ -63,27 +63,27 @@ class test_setup_functions(unittest.TestCase):
         p = 2
         case = 'cantilever L'
         he = np.ones(Nell) / Nell
-        self.Xe_4_2 = Xe_4_2 = get_node_locations_x(Nell, he)
-        self.knots_4_2 = knots_4_2 = get_knot_vector(Nell, Xe_4_2, p)
-        self.GA_4_2 = GA_4_2 = get_greville_abscissae(self.knots_4_2, p)
+        self.Xe_4_2 = Xe_4_2 = node_locations_x(Nell, he)
+        self.knots_4_2 = knots_4_2 = knot_vector(Nell, Xe_4_2, p)
+        self.GA_4_2 = GA_4_2 = greville_abscissae(self.knots_4_2, p)
         self.ID_4_2 = ID_4_2 = get_id(case, Nell, p)
-        self.IEM_4_2 = IEM_4_2 = get_iem(Nell, p)
-        self.LM_4_2 = LM_4_2 = get_lm(Nell, p, ID_4_2, IEM_4_2)
+        self.IEM_4_2 = IEM_4_2 = iem_array(Nell, p)
+        self.LM_4_2 = LM_4_2 = lm_array(Nell, p, ID_4_2, IEM_4_2)
 
         Nell = 10
         p = 3
         he = np.ones(Nell) / Nell
-        self.Xe_10_3 = Xe_10_3 = get_node_locations_x(Nell, he)
-        self.knots_10_3 = knots_10_3 = get_knot_vector(Nell, Xe_10_3, p)
-        self.GA_10_3 = GA_10_3 = get_greville_abscissae(self.knots_10_3, p)
+        self.Xe_10_3 = Xe_10_3 = node_locations_x(Nell, he)
+        self.knots_10_3 = knots_10_3 = knot_vector(Nell, Xe_10_3, p)
+        self.GA_10_3 = GA_10_3 = greville_abscissae(self.knots_10_3, p)
         self.ID_10_3 = ID_10_3 = get_id(case, Nell, p)
-        self.IEM_10_3 = IEM_10_3 = get_iem(Nell, p)
-        self.LM_10_3 = LM_10_3 = get_lm(Nell, p, ID_10_3, IEM_10_3)
+        self.IEM_10_3 = IEM_10_3 = iem_array(Nell, p)
+        self.LM_10_3 = LM_10_3 = lm_array(Nell, p, ID_10_3, IEM_10_3)
 
         case = 'cantilever R'
         self.ID_10_3_R = ID_10_3_R = get_id(case, Nell, p)
-        self.IEM_10_3_R = IEM_10_3_R = get_iem(Nell, p)
-        self.LM_10_3_R = LM_10_3_R = get_lm(Nell, p, ID_10_3_R, IEM_10_3_R)
+        self.IEM_10_3_R = IEM_10_3_R = iem_array(Nell, p)
+        self.LM_10_3_R = LM_10_3_R = lm_array(Nell, p, ID_10_3_R, IEM_10_3_R)
 
         # print GA_10_3
         # print knots_10_3
