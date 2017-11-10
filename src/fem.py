@@ -38,8 +38,8 @@ def ffunc_quadratic(x, a=np.array([0, 0, 1])):
 def fem_solver(Nell, he, Nint, p, ID, E, I, ffunc=ffunc_quadratic, ffunc_args=np.array([0., 0., 1.])):
 
     # define LM array
-    IEM = iem_array(Nell, p)
-    LM = lm_array(Nell, p, ID, IEM)
+    IEN = ien_array(Nell, p)
+    LM = lm_array(Nell, p, ID, IEN)
 
     # initialize global stiffness matrix
     K = np.zeros((ID[ID[:]>0].size, ID[ID[:]>0].size))
@@ -102,8 +102,24 @@ def fem_solver(Nell, he, Nint, p, ID, E, I, ffunc=ffunc_quadratic, ffunc_args=np
 
     # solve for d
     d = solve_for_d(K, F)
+    d = np.append(d, 0.)
+    # determine the number of nodes
+    Nnodes = np.size(d)
 
-    return K, F, d
+    # print d, Nnodes
+    # quit()
+
+    # initialize solution array
+    solution = np.zeros(Nnodes)
+
+    # populate solution array
+    for a in np.arange(0, Nnodes):
+        if ID[a] == 0:
+            continue
+        else:
+            solution[a] = d[int(ID[a])-1]
+
+    return K, F, d, solution
 
 def solve_for_d(K, F):
 
@@ -253,7 +269,7 @@ def get_id(case, Nell, p):
     # quit()
     return ID
 
-def iem_array(Nell, p):
+def ien_array(Nell, p):
 
     IEM = np.zeros([p+1, Nell])
     for i in np.arange(0, p+1):
@@ -431,29 +447,37 @@ def global_bezier_extraction(GA, Ne, Nedxi, Nedxidxi):
     # derivatives of the basis function in global coordinates
     Ndx = Nedxi/dxedxi
     Ndxdx = (Nedxidxi - Ndx*dxedxedxidxi)/(dxedxi**2)
-
+    # print 'dxidxi', dxedxi
     return Ndx, Ndxdx, dxedxi, xe
 
-def quadrature(Xe, he, ue, ffunc_args=np.array([0., 0., 1.])):
+def error_quadrature(Xe, he, ue, p, Nell, Nint, ffunc_args=np.array([0., 0., 1.])):
 
-    # print Xe, he, ue, ffunc
-    # quit()
-    Nell = he.size
-    xi = np.array([-np.sqrt(3./5.), 0., np.sqrt(3./5.)])
-    w = np.array([5./9., 8./9., 5./9.])
+    # get quadrature points and weights in local coordinants
+    xi, w = quadrature_rule(Nint)
+
+    # get node locations in global coordinates
+    xe = node_locations_x(Nell, he)
+
+    # get the knot vector
+    S = knot_vector(Nell, xe, p)
+
+    # find the Greville Abscissae
+    ga = greville_abscissae(S, p)
 
     ffunc_num = len(ffunc_args)-1
 
     error_squared = 0.0
-    for el in np.arange(0, Nell):
-        x = x_of_xi(xi, Xe, he, el)
+    for el in np.arange(1, Nell+1):
+        for i in np.arange(0, xi.size):
+            B, Bdxi, Bdxidxi = local_bernstein(xi[i], p)
+            N, Nedxi, Nedxidxi = local_bezier_extraction(p, el, Nell, B, Bdxi, Bdxidxi)
+            _, _, dxdxi, x = global_bezier_extraction(ga[el - 1:el + p], N, Nedxi, Nedxidxi)
 
-        dxdxi = he[el]/2
+            ux = get_u_of_x_exact(x, q=1, ffunc_num=ffunc_num)
+            # ua = get_u_of_x_approx(x, ue, he)
 
-        ux = get_u_of_x_exact(x, q=1, ffunc_num=ffunc_num)
-        ua = get_u_of_x_approx(x, ue, he)
+            error_squared += np.sum(((ux-ue)**2)*dxdxi*w)
 
-        error_squared += np.sum(((ux-ua)**2)*dxdxi*w)
     error = np.sqrt(error_squared)
 
     return error
@@ -477,12 +501,17 @@ def plot_error():
     n = np.array([1, 10, 100, 1000])
 
     error = np.zeros([2, n.size])
+    theoretical_error = np.zeros([2, n.size])
+    # slope = np.zeros([2, n.size-1])
 
     q = 1
 
     h = np.zeros([2, 4])
 
     nodes = np.zeros([2, 4])
+
+    x = np.linspace(0, 1, 800)
+
     # print h, n
     for p, i in zip(np.array([2, 3]), np.arange(0, 2)):
         for Nell, j in zip(n, np.arange(n.size)):
@@ -490,8 +519,8 @@ def plot_error():
             nodes[i,j] = Nell + p
 
             he = np.ones(Nell) / Nell
+
             h[i, j] = he[0]
-            x = np.linspace(0, 1, 4 * Nell + 1)
 
             ID = get_id('coding two part one', Nell, p)
 
@@ -499,16 +528,30 @@ def plot_error():
 
             u = solve_for_displacements(d, Nell, he, g=0)
 
-            u_ap = get_u_of_x_approx(x, u, he)
+            # u_ap = get_u_of_x_approx(x, u, he)
             u_ex = get_u_of_x_exact(x, q, 2)
-            print u_ap, u_ex
-            error[i, j] = np.sum((u_ap - u_ex)**2)
+            # print u_ap, u_ex
+            # error[i, j] = np.sum(n(u_ap - u_ex)**2)
+            error[i, j] = error_quadrature(x, he, u, p, Nell, Nint, ffunc_args=np.array([0.,0.,1.]))
+            theoretical_error[i, j] = (abs(u_ex[0])*he[0]**(p+1))
+            # print theoretical_error
+
+
             # print "ffunc: %i, Nell: %i, Error: %f" % (ffunc_num, Nell, error[i, j])
+
+    slope = np.gradient(np.log(error[1,:]), np.log(1./Nell))
+    print (np.log(error[1,2]) - np.log(error[1,1]))/(np.log(n[2])-np.log(n[1]))
+    print slope
+    # print (np.log(error[1])-np.log(error[0]))/(x[1]-x[0])
+    print error.shape
+    # quit()
 
     # np.savetxt('error.txt', np.c_[n, he, np.transpose(error)], header="Nell, h, E(f(x)=c), E(f(x)=x), E(f(x)=x^2)")
     print he.shape, error.shape
-    plt.loglog(h[0, :], error[0,:], '-o', label='$p=2$')
-    plt.loglog(h[1, :], error[1,:], '-o', label='$p=3$')
+    plt.loglog(h[0, :], error[0,:], '-o', label='Real, $p=2$, $slope=%i$' % slope[0])
+    plt.loglog(h[1, :], error[1,:], '-o', label='Real, $p=3$, $slope=%i$' % slope[1])
+    plt.loglog(h[1, :], theoretical_error[0,:], '-o', label='A priori, $p=2$')
+    plt.loglog(h[1, :], theoretical_error[1,:], '-o', label='A priori, $p=3$')
     # plt.loglog(he, error[2,:], '-o', label='$f(x)=x^2$')
     plt.legend(loc=2)
     plt.xlabel('$h$')
@@ -628,7 +671,7 @@ def run_linear(Nell, Nint, p, E=1, I=1):
     # print error
     plot_displacements(u, x, he, Nell, ffunc=ffunc, ffunc_args=ffunc_args)
 
-def run_quadratic(Nell, Nint, p, E=1, I=1):
+def run_quadratic(Nell, Nint, p, E=1, I=1, Nsamples=3):
 
     ffunc = ffunc_quadratic
     ffunc_args = np.array([0, 0, 1])
@@ -639,7 +682,7 @@ def run_quadratic(Nell, Nint, p, E=1, I=1):
     Xe = node_locations_x(Nell, he)
 
     tic = time.time()
-    K, F, d = fem_solver(Nell, he, Nint, p, ID, E, I, ffunc)
+    K, F, d, sol = fem_solver(Nell, he, Nint, p, ID, E, I, ffunc)
     toc = time.time()
     print he, Nell, K
     print "Time to run fem solver: %.3f (s)" % (toc - tic)
@@ -656,6 +699,46 @@ def run_quadratic(Nell, Nint, p, E=1, I=1):
     # error = quadrature(Xe, he, u, ffunc_args=ffunc_args)
     # print error
     plot_displacements(u, x, he, Nell, ffunc=ffunc, ffunc_args=ffunc_args)
+    plot_results(sol, p, Nell, Nsamples, ID)
+
+def plot_results(solution, p, Nell, Nsamples, ID):
+    print "here"
+    # create sample vector
+    xi_sample = np.linspace(-1., 1., Nsamples)
+
+    # get IEN array
+    IEN = ien_array(Nell, p)
+
+    # initialize displacement array
+    u = np.zeros(Nell*Nsamples)
+
+    # get quadrature points and weights in local coordinants
+    xi_sample, w = quadrature_rule(Nint)
+
+    # loop over elements
+    for e in np.arange(0, Nell):
+        # loop over samples
+        # for i in np.arange(0, Nsamples):
+        for i in np.arange(1, 2):
+            B, Bdxi, Bdxidxi = local_bernstein(xi_sample[i], p)
+            N, Nedxi, Nedxidxi = local_bezier_extraction(p, e+1, Nell, B, Bdxi, Bdxidxi)
+            # print N, p, IEN, solution
+            # print e, i
+            for a in np.arange(0, p+1):
+
+                u[int(e*Nsamples + i)] += N[a]*solution[int(IEN[a, e])-1]
+
+    # initialize location array
+    x = np.linspace(0., 1., Nell*Nsamples)
+    x_ex = np.linspace(0., 1., 500)
+    # print x
+    # print u
+    q = 1
+    u_ex = get_u_of_x_exact(x_ex, q, 2)
+
+    plt.plot(x_ex, u_ex)
+    plt.plot(x, u, '--')
+    plt.show()
 
 
 
@@ -664,14 +747,17 @@ if __name__ == "__main__":
     # get_lm(10)
     # get_slope()
     # exit()
-    plot_error()
+    # plot_error()
     # exit()
     #
     # input variables
 
-    # p = 3                       # basis function order
-    # Nell = 1000                    # number of elements
-    # Nint = 2                    # number of quadrature intervals
+    p = 3                       # basis function order
+    Nell = 10                   # number of elements
+    Nint = 3                    # number of quadrature intervals
+    Nsamples = 3
     # run_constant(Nell, Nint, p)
     # run_linear(Nell, Nint, p)
-    # run_quadratic(Nell, Nint, p)
+    run_quadratic(Nell, Nint, p, Nsamples=Nsamples)
+
+    # plot_results()
