@@ -70,7 +70,7 @@ def fem_solver(Nell, he, Nint, p, ID, E, I, ffunc=ffunc_quadratic, ffunc_args=np
             N, Nedxi, Nedxidxi = local_bezier_extraction(p, e, Nell, B, Bdxi, Bdxidxi)
             Ndx, Ndxdx, dxdxi, x = global_bezier_extraction(ga[e-1:e+p],N, Nedxi, Nedxidxi)
             slice = ga[e-1:e+p]
-            print x, xi[i], "fem"
+            # print x, xi[i], "fem"
             # get base k matrix for element e
             for a in np.arange(0, p+1):
                 if LM[a, e - 1] == 0:
@@ -487,7 +487,7 @@ def error_quadrature(solution, p, Nell, Nint, he):
             N, Nedxi, Nedxidxi = local_bezier_extraction(p, e + 1, Nell, B, Bdxi, Bdxidxi)
             Ndx, Ndxdx, dxdxi, x = global_bezier_extraction(ga[e:e+p+1],N, Nedxi, Nedxidxi)
 
-            print x, xi_sample[i]
+            # print x, xi_sample[i]
             for a in np.arange(0, p + 1):
                 u[int(e * Nint + i)] += N[a] * solution[int(IEN[a, e]) - 1]
 
@@ -533,16 +533,17 @@ def plot_error():
 
     q = 1
 
-    h = np.zeros([2, 4])
+    h = np.zeros([2, n.size])
 
-    nodes = np.zeros([2, 4])
+    nodes = np.zeros([2, n.size])
 
-    slope = np.zeros(2)
+    r_slope = np.zeros(2)
+    t_slope = np.zeros(2)
 
     # print h, n
     for p, i in zip(np.array([2, 3]), np.arange(0, 2)):
         for Nell, j in zip(n, np.arange(n.size)):
-
+            print 'p = %i, N = %i' % (p, Nell)
             # run_quadratic(Nell, Nint, p)
 
             nodes[i,j] = Nell + p
@@ -570,31 +571,39 @@ def plot_error():
 
             # print "ffunc: %i, Nell: %i, Error: %f" % (ffunc_num, Nell, error[i, j])
 
-        slope[i] = np.log(real_error[i, -1]/real_error[i, 0])/np.log(n[-1]/n[0])
-    print (np.log(real_error[1,2] - real_error[1,1]))/(np.log(n[2]-n[1]))
-    print slope
+        r_slope[i] = np.log(real_error[i, 2]/real_error[i, 0])/np.log(n[2]/n[0])
+        t_slope[i] = np.log(theoretical_error[i, -1]/theoretical_error[i, 0])/np.log(n[-1]/n[0])
+
     # print (np.log(error[1])-np.log(error[0]))/(x[1]-x[0])
-    print real_error.shape
+    # print real_error.shape
     # quit()
 
     # np.savetxt('error.txt', np.c_[n, he, np.transpose(error)], header="Nell, h, E(f(x)=c), E(f(x)=x), E(f(x)=x^2)")
-    print h.shape, real_error.shape
-    plt.loglog(h[0, :], real_error[0,:], '-o', label='Real, $p=2$, $slope=%i$' % slope[0])
-    plt.loglog(h[1, :], real_error[1,:], '-o', label='Real, $p=3$, $slope=%i$' % slope[1])
-    plt.loglog(h[1, :], theoretical_error[0,:], '-o', label='A priori, $p=2$')
-    plt.loglog(h[1, :], theoretical_error[1,:], '-o', label='A priori, $p=3$')
+    # print h.shape, real_error.shape
+    plt.loglog(h[0, :], theoretical_error[0,:], '--or', label='A priori, $p=2, slope=%.3f$' % t_slope[0])
+    plt.loglog(h[0, :], real_error[0,:], '-or', label='Real, $p=2$, $slope=%.3f$' % r_slope[0])
+    plt.loglog(h[1, :], theoretical_error[1,:], '--ob', label='A priori, $p=3, slope=%.3f$' % t_slope[1])
+    plt.loglog(h[1, :], real_error[1,:], '-ob', label='Real, $p=3$, $slope=%.3f$' % r_slope[1])
     # plt.loglog(he, error[2,:], '-o', label='$f(x)=x^2$')
-    plt.legend(loc=2)
+    leg = plt.legend(loc=4, frameon=False)
+    leg.get_frame().set_alpha(0.0)
     plt.xlabel('$h$')
     plt.ylabel('$Error$')
+
+    plt.savefig('error_he.pdf', tranparent=True)
     plt.show()
 
-    plt.loglog(nodes[0, :], real_error[0, :], '-o', label='$p=2$')
-    plt.loglog(nodes[1, :], real_error[1, :], '-o', label='$p=3$')
+    plt.loglog(nodes[0, :], theoretical_error[0, :], '--or', label='A priori, $p=2$' % t_slope[0])
+    plt.loglog(nodes[0, :], real_error[0, :], '-or', label='Real, $p=2$' % r_slope[0])
+    plt.loglog(nodes[1, :], theoretical_error[1, :], '--ob', label='A priori, $p=3$' % t_slope[1])
+    plt.loglog(nodes[1, :], real_error[1, :], '-ob', label='Real, $p=3$' % r_slope[1])
     # plt.loglog(he, error[2,:], '-o', label='$f(x)=x^2$')
-    plt.legend(loc=2)
+    leg=plt.legend(loc=1, frameon=False)
+    leg.get_frame().set_alpha(0.0)
     plt.xlabel('$Nodes$')
     plt.ylabel('$Error$')
+
+    plt.savefig('error_nodes.pdf', transparent=True)
     plt.show()
 
     return
