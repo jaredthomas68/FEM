@@ -70,6 +70,7 @@ def fem_solver(Nell, he, Nint, p, ID, E, I, ffunc=ffunc_quadratic, ffunc_args=np
             N, Nedxi, Nedxidxi = local_bezier_extraction(p, e, Nell, B, Bdxi, Bdxidxi)
             Ndx, Ndxdx, dxdxi, x = global_bezier_extraction(ga[e-1:e+p],N, Nedxi, Nedxidxi)
             slice = ga[e-1:e+p]
+            print x, xi[i], "fem"
             # get base k matrix for element e
             for a in np.arange(0, p+1):
                 if LM[a, e - 1] == 0:
@@ -450,10 +451,22 @@ def global_bezier_extraction(GA, Ne, Nedxi, Nedxidxi):
     # print 'dxidxi', dxedxi
     return Ndx, Ndxdx, dxedxi, xe
 
-def error_quadrature(Xe, he, ue, p, Nell, Nint, ffunc_args=np.array([0., 0., 1.])):
+def error_quadrature(solution, p, Nell, Nint, he):
+
+    # get IEN array
+    IEN = ien_array(Nell, p)
 
     # get quadrature points and weights in local coordinants
-    xi, w = quadrature_rule(Nint)
+    xi_sample, w = quadrature_rule(Nint)
+
+    # initialize displacement vector
+    u = np.zeros(Nell * Nint)
+
+    # initialize error vector
+    error = np.zeros(Nell * Nint)
+
+    # initialize x vector
+    X = np.zeros(Nell * Nint)
 
     # get node locations in global coordinates
     xe = node_locations_x(Nell, he)
@@ -464,23 +477,37 @@ def error_quadrature(Xe, he, ue, p, Nell, Nint, ffunc_args=np.array([0., 0., 1.]
     # find the Greville Abscissae
     ga = greville_abscissae(S, p)
 
-    ffunc_num = len(ffunc_args)-1
+    # loop over elements
+    print "start loop"
+    for e in np.arange(0, Nell):
+        # loop over samples
+        # for i in np.arange(0, Nsamples):
+        for i in np.arange(0, xi_sample.size):
+            B, Bdxi, Bdxidxi = local_bernstein(xi_sample[i], p)
+            N, Nedxi, Nedxidxi = local_bezier_extraction(p, e + 1, Nell, B, Bdxi, Bdxidxi)
+            Ndx, Ndxdx, dxdxi, x = global_bezier_extraction(ga[e:e+p+1],N, Nedxi, Nedxidxi)
 
-    error_squared = 0.0
-    for el in np.arange(1, Nell+1):
-        for i in np.arange(0, xi.size):
-            B, Bdxi, Bdxidxi = local_bernstein(xi[i], p)
-            N, Nedxi, Nedxidxi = local_bezier_extraction(p, el, Nell, B, Bdxi, Bdxidxi)
-            _, _, dxdxi, x = global_bezier_extraction(ga[el - 1:el + p], N, Nedxi, Nedxidxi)
+            print x, xi_sample[i]
+            for a in np.arange(0, p + 1):
+                u[int(e * Nint + i)] += N[a] * solution[int(IEN[a, e]) - 1]
 
-            ux = get_u_of_x_exact(x, q=1, ffunc_num=ffunc_num)
-            # ua = get_u_of_x_approx(x, ue, he)
+            u_ex = get_u_of_x_exact(x, 1, 2)
 
-            error_squared += np.sum(((ux-ue)**2)*dxdxi*w)
+            error[e * Nint + i] += ((u_ex - u[int(e * Nint + i)])**2)*dxdxi*w[i]
+            # print error, e, i, e * Nint + i, u, X
+    # print "end loop", error
+    error = np.sqrt(abs(np.sum(error)))
 
-    error = np.sqrt(error_squared)
-
-    return error
+    # initialize location array
+    # x = np.linspace(0., 1., Nell * Nsamples)
+    # x_ex = np.linspace(0., 1., 500)
+    # print x
+    # print u
+    # q = 1
+    # u_ex = get_u_of_x_exact(x_ex, q, 2)
+    # print error
+    # quit()
+    return error, X
 
 def lm_array(Nell, p, ID, IEM):
 
@@ -500,8 +527,8 @@ def plot_error():
 
     n = np.array([1, 10, 100, 1000])
 
-    error = np.zeros([2, n.size])
     theoretical_error = np.zeros([2, n.size])
+    real_error = np.zeros([2, n.size])
     # slope = np.zeros([2, n.size-1])
 
     q = 1
@@ -510,11 +537,13 @@ def plot_error():
 
     nodes = np.zeros([2, 4])
 
-    x = np.linspace(0, 1, 800)
+    slope = np.zeros(2)
 
     # print h, n
     for p, i in zip(np.array([2, 3]), np.arange(0, 2)):
         for Nell, j in zip(n, np.arange(n.size)):
+
+            # run_quadratic(Nell, Nint, p)
 
             nodes[i,j] = Nell + p
 
@@ -524,32 +553,34 @@ def plot_error():
 
             ID = get_id('coding two part one', Nell, p)
 
-            K, F, d = fem_solver(Nell, he, Nint, p, ID, E, I)
+            K, F, d, sol = fem_solver(Nell, he, Nint, p, ID, E, I)
 
-            u = solve_for_displacements(d, Nell, he, g=0)
+            # u = solve_for_displacements(d, Nell, he, g=0)
+
+            real_error[i, j], x = error_quadrature(sol, p, Nell, Nint, he)
 
             # u_ap = get_u_of_x_approx(x, u, he)
             u_ex = get_u_of_x_exact(x, q, 2)
             # print u_ap, u_ex
             # error[i, j] = np.sum(n(u_ap - u_ex)**2)
-            error[i, j] = error_quadrature(x, he, u, p, Nell, Nint, ffunc_args=np.array([0.,0.,1.]))
+
             theoretical_error[i, j] = (abs(u_ex[0])*he[0]**(p+1))
             # print theoretical_error
 
 
             # print "ffunc: %i, Nell: %i, Error: %f" % (ffunc_num, Nell, error[i, j])
 
-    slope = np.gradient(np.log(error[1,:]), np.log(1./Nell))
-    print (np.log(error[1,2]) - np.log(error[1,1]))/(np.log(n[2])-np.log(n[1]))
+        slope[i] = np.log(real_error[i, -1]/real_error[i, 0])/np.log(n[-1]/n[0])
+    print (np.log(real_error[1,2] - real_error[1,1]))/(np.log(n[2]-n[1]))
     print slope
     # print (np.log(error[1])-np.log(error[0]))/(x[1]-x[0])
-    print error.shape
+    print real_error.shape
     # quit()
 
     # np.savetxt('error.txt', np.c_[n, he, np.transpose(error)], header="Nell, h, E(f(x)=c), E(f(x)=x), E(f(x)=x^2)")
-    print he.shape, error.shape
-    plt.loglog(h[0, :], error[0,:], '-o', label='Real, $p=2$, $slope=%i$' % slope[0])
-    plt.loglog(h[1, :], error[1,:], '-o', label='Real, $p=3$, $slope=%i$' % slope[1])
+    print h.shape, real_error.shape
+    plt.loglog(h[0, :], real_error[0,:], '-o', label='Real, $p=2$, $slope=%i$' % slope[0])
+    plt.loglog(h[1, :], real_error[1,:], '-o', label='Real, $p=3$, $slope=%i$' % slope[1])
     plt.loglog(h[1, :], theoretical_error[0,:], '-o', label='A priori, $p=2$')
     plt.loglog(h[1, :], theoretical_error[1,:], '-o', label='A priori, $p=3$')
     # plt.loglog(he, error[2,:], '-o', label='$f(x)=x^2$')
@@ -558,13 +589,14 @@ def plot_error():
     plt.ylabel('$Error$')
     plt.show()
 
-    plt.loglog(nodes[0, :], error[0, :], '-o', label='$p=2$')
-    plt.loglog(nodes[1, :], error[1, :], '-o', label='$p=3$')
+    plt.loglog(nodes[0, :], real_error[0, :], '-o', label='$p=2$')
+    plt.loglog(nodes[1, :], real_error[1, :], '-o', label='$p=3$')
     # plt.loglog(he, error[2,:], '-o', label='$f(x)=x^2$')
     plt.legend(loc=2)
     plt.xlabel('$Nodes$')
     plt.ylabel('$Error$')
     plt.show()
+
     return
 
 def get_slope():
@@ -701,6 +733,8 @@ def run_quadratic(Nell, Nint, p, E=1, I=1, Nsamples=3):
     plot_displacements(u, x, he, Nell, ffunc=ffunc, ffunc_args=ffunc_args)
     plot_results(sol, p, Nell, Nsamples, ID)
 
+    return sol
+
 def plot_results(solution, p, Nell, Nsamples, ID):
     print "here"
     # create sample vector
@@ -709,17 +743,18 @@ def plot_results(solution, p, Nell, Nsamples, ID):
     # get IEN array
     IEN = ien_array(Nell, p)
 
-    # initialize displacement array
-    u = np.zeros(Nell*Nsamples)
-
     # get quadrature points and weights in local coordinants
     xi_sample, w = quadrature_rule(Nint)
+
+    Nsamples = Nint
+    # initialize displacement array
+    u = np.zeros(Nell*Nsamples)
 
     # loop over elements
     for e in np.arange(0, Nell):
         # loop over samples
         # for i in np.arange(0, Nsamples):
-        for i in np.arange(1, 2):
+        for i in np.arange(0, Nsamples):
             B, Bdxi, Bdxidxi = local_bernstein(xi_sample[i], p)
             N, Nedxi, Nedxidxi = local_bezier_extraction(p, e+1, Nell, B, Bdxi, Bdxidxi)
             # print N, p, IEN, solution
@@ -758,6 +793,6 @@ if __name__ == "__main__":
     Nsamples = 3
     # run_constant(Nell, Nint, p)
     # run_linear(Nell, Nint, p)
-    run_quadratic(Nell, Nint, p, Nsamples=Nsamples)
-
+    # sol = run_quadratic(Nell, Nint, p, Nsamples=Nsamples)
+    plot_error()
     # plot_results()
