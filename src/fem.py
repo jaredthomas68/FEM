@@ -35,8 +35,33 @@ def ffunc_quadratic(x, a=np.array([0, 0, 1])):
     f = a[0] + a[1]*x + a[2]*x**2
     return f
 
-def fem_solver(Nell, he, Nint, p, ID, E, I, ffunc=ffunc_quadratic, ffunc_args=np.array([0., 0., 1.])):
+def ffunc_cubic(x, a=np.array([0., 0., 0., 10.])):
 
+    f = a[0] + a[1]*x + a[2]*x**2 + a[3]*x**3
+
+    return f
+
+def ffunc_beam(x, a=np.array([10, 0.005])):
+    """
+    Forcing function defined for coding 2 part 2
+    :param x: location in global reference frame
+    :param a: [a, h]
+    :return: forcing function value
+    """
+    f = a[0]*a[1]**3
+
+    return f
+
+def moment_of_inertia_rectangle(b, h):
+
+    Ix = (b*h**3)/12.
+    Iy = (h*b**3)/12.
+    Ixy = 0.
+
+    return Ix, Iy, Ixy
+
+def fem_solver(Nell, he, Nint, p, ID, E, I, ffunc=ffunc_quadratic, ffunc_args=np.array([0., 0., 1.]), case=2):
+    print "entering solver"
     # define LM array
     IEN = ien_array(Nell, p)
     LM = lm_array(Nell, p, ID, IEN)
@@ -61,26 +86,33 @@ def fem_solver(Nell, he, Nint, p, ID, E, I, ffunc=ffunc_quadratic, ffunc_args=np
 
     # loop over elements
     for e in np.arange(1, Nell+1):
+        # print "in element loop"
         ke = np.zeros((p + 1, p + 1))
         fe = np.zeros(p + 1)
 
         # solve for local stifness matrix and force vector
         for i in np.arange(0, Nint):
+            # print "in integration loop"
             B, Bdxi, Bdxidxi = local_bernstein(xi[i], p)
             N, Nedxi, Nedxidxi = local_bezier_extraction(p, e, Nell, B, Bdxi, Bdxidxi)
             Ndx, Ndxdx, dxdxi, x = global_bezier_extraction(ga[e-1:e+p],N, Nedxi, Nedxidxi)
             slice = ga[e-1:e+p]
             # print x, xi[i], "fem"
             # get base k matrix for element e
+            # print "in a loop"
             for a in np.arange(0, p+1):
+                # print LM
                 if LM[a, e - 1] == 0:
                     continue
                 for b in np.arange(0, p+1):
+                    # print "in b loop"
                     if LM[b, e - 1] == 0:
                         continue
                     # k_basis[a,b] = ((-1)**(a+b))/he[e]
                     # k_basis[a, b] = Ndxdx[a]*E*I*Ndxdx[b]*dxdxi*w[i]
-                    ke[a, b] += Ndx[a]*E*I*Ndx[b]*w[i]*dxdxi
+
+                    ke[int(a), int(b)] += Ndx[int(a)]*E*I*Ndx[int(b)]*w[int(i)]*dxdxi
+
                     # K[int(LM[a, e - 1] - 1), int(LM[b, e - 1] - 1)] += Ndx[a]*E*I*Ndx[b]*w[i]*dxdxi
                 fe[a] += N[a] * ffunc(x, ffunc_args) * dxdxi * w[i]
 
@@ -103,9 +135,16 @@ def fem_solver(Nell, he, Nint, p, ID, E, I, ffunc=ffunc_quadratic, ffunc_args=np
 
     # solve for d
     d = solve_for_d(K, F)
-    d = np.append(d, 0.)
+    da = np.copy(d)
+    if case == 0:
+        dda = np.append(d, 0.)
+    elif case == 1:
+        da = np.append(5., d)
+    elif case == 2:
+        da = np.append(d, 0.)
+
     # determine the number of nodes
-    Nnodes = np.size(d)
+    Nnodes = Nell + p
 
     # print d, Nnodes
     # quit()
@@ -119,8 +158,8 @@ def fem_solver(Nell, he, Nint, p, ID, E, I, ffunc=ffunc_quadratic, ffunc_args=np
             continue
         else:
             solution[a] = d[int(ID[a])-1]
-
-    return K, F, d, solution
+    # print 'solution: ', solution
+    return K, F, d, solution, da
 
 def solve_for_d(K, F):
 
@@ -190,21 +229,54 @@ def quadrature_rule(Nint):
 
     return gp, w
 
-def get_u_of_x_approx(Xp, u, he):
+def get_u_of_x_approx(sol, he, Nell, Nint, p):
 
-    Nell = he.size
-    Xn = np.zeros(Nell+1)
-    for e in np.arange(1, Nell+1):
-        Xn[e] = Xn[e-1] + he[e-1]
+    # get IEN array
+    IEN = ien_array(Nell, p)
 
-    u_x = np.zeros_like(Xp)
-    for x, i in zip(Xp, np.arange(0,Xp.size)):
-        for e in np.arange(1, Nell+1):
-            if x < Xn[e]:
-                u_x[i] = ((u[e] - u[e-1])/(Xn[e] - Xn[e-1]))*(x-Xn[e-1]) + u[e-1]
-                break
+    # get quadrature points and weights in local coordinants
+    xi_sample, w = quadrature_rule(Nint)
 
-    return u_x
+    # find number of samples
+    Nsamples = xi_sample.size
+
+    # initialize displacement vector
+    u = np.zeros(Nell * Nint+1)
+
+    # initialize error vector
+    error = np.zeros(Nell * Nint)
+
+    # initialize x vector
+    X = np.zeros(Nell * Nint)
+
+    # get node locations in global coordinates
+    xe = node_locations_x(Nell, he)
+
+    # get the knot vector
+    S = knot_vector(Nell, xe, p)
+
+    # find the Greville Abscissae
+    ga = greville_abscissae(S, p)
+
+    # set up resulting x location vector
+    x_sample = np.zeros(Nell*Nsamples+1)
+
+    # loop over elements
+    print "start loop"
+    for e in np.arange(0, Nell):
+        # loop over samples
+        # for i in np.arange(0, Nsamples):
+        for i in np.arange(0, xi_sample.size):
+            B, Bdxi, Bdxidxi = local_bernstein(xi_sample[i], p)
+            N, Nedxi, Nedxidxi = local_bezier_extraction(p, e + 1, Nell, B, Bdxi, Bdxidxi)
+            Ndx, Ndxdx, dxdxi, x = global_bezier_extraction(ga[e:e + p + 1], N, Nedxi, Nedxidxi)
+
+            x_sample[e*Nsamples+i] = x
+
+            # print x, xi_sample[i]
+            for a in np.arange(0, p + 1):
+                u[int(e * Nint + i)] += N[a] * sol[int(IEN[a, e]) - 1]
+    return u, x_sample
 
 def get_u_of_x_exact(x, q, ffunc_num):
 
@@ -256,27 +328,33 @@ def get_id(case, Nell, p):
 
     ID = np.zeros(Nell+p)
 
-    if case == 'cantilever L':
+    # cantilever L
+    if case == 0:
         # print 'here in ', case
         ID[0:Nell] = np.arange(1,Nell+1)
 
-    if case == 'cantilever R':
+
+    # cantilever R
+    elif case == 1:
         # print 'here in ', case
         ID[p:] = np.arange(1,Nell+1)
 
-    if case == 'coding two part one':
+    # coding two part one
+    elif case == 2:
         ID[0:Nell+p-1] = np.arange(1, Nell+p)
-    # print ID
-    # quit()
+
+    else:
+        raise ValueError('invalid ID case')
+
     return ID
 
 def ien_array(Nell, p):
 
-    IEM = np.zeros([p+1, Nell])
+    IEN = np.zeros([p+1, Nell])
     for i in np.arange(0, p+1):
-        IEM[i,:] = np.arange(i+1, i+1+Nell)
+        IEN[i,:] = np.arange(i+1, i+1+Nell)
 
-    return IEM
+    return IEN
 
 def local_bernstein(xi, p):
 
@@ -552,9 +630,9 @@ def plot_error():
 
             h[i, j] = he[0]
 
-            ID = get_id('coding two part one', Nell, p)
+            ID = get_id(2, Nell, p)
 
-            K, F, d, sol = fem_solver(Nell, he, Nint, p, ID, E, I)
+            K, F, d, sol, da = fem_solver(Nell, he, Nint, p, ID, E, I)
 
             # u = solve_for_displacements(d, Nell, he, g=0)
 
@@ -608,24 +686,6 @@ def plot_error():
 
     return
 
-def get_slope():
-
-    data = np.loadtxt('error.txt')
-    fx0 = data[:, 2]
-    fx1 = data[:, 3]
-    fx2 = data[:, 4]
-    h = data[:, 1]
-    # print h
-    # print fx0
-    # print fx1
-    # print fx2
-
-    # print (np.log(fx0[-1])-np.log(fx0[0]))/(np.log(h[-1])-(np.log(h[0])))
-    # print (np.log(fx1[-1])-np.log(fx1[0]))/(np.log(h[-1])-(np.log(h[0])))
-    # print (np.log(fx2[-1])-np.log(fx2[0]))/(np.log(h[-1])-(np.log(h[0])))
-    # print (fx2[-1]-fx2[0])/(h[-1]-h[0])
-    return
-
 def plot_displacements(u, x, he, Nell, q=1, ffunc=ffunc_constant, ffunc_args=np.array([1])):
 
     plt.rcParams.update({'font.size': 22})
@@ -661,7 +721,7 @@ def run_constant(Nell, Nint, p, E=1, I=1):
     he = np.ones(Nell) / Nell
     x = np.linspace(0, 1, 4 * Nell + 1)
 
-    ID = get_id('coding two part one', Nell, p)
+    ID = get_id(2, Nell, p)
     Xe = node_locations_x(Nell, he)
 
     tic = time.time()
@@ -690,7 +750,7 @@ def run_linear(Nell, Nint, p, E=1, I=1):
     he = np.ones(Nell) / Nell
     x = np.linspace(0, 1, 4 * Nell + 1)
 
-    ID = get_id('coding two part one', Nell, p)
+    ID = get_id(2, Nell, p)
     Xe = node_locations_x(Nell, he)
 
     tic = time.time()
@@ -719,7 +779,7 @@ def run_quadratic(Nell, Nint, p, E=1, I=1, Nsamples=3):
     he = np.ones(Nell) / Nell
     x = np.linspace(0, 1, 4 * Nell + 1)
 
-    ID = get_id('coding two part one', Nell, p)
+    ID = get_id(2, Nell, p)
     Xe = node_locations_x(Nell, he)
 
     tic = time.time()
@@ -784,7 +844,202 @@ def plot_results(solution, p, Nell, Nsamples, ID):
     plt.plot(x, u, '--')
     plt.show()
 
+def beam_solution_1():
 
+    # problem parameters
+    E = 1000000
+    b = 0.005
+    h = 0.005
+    l = 1.
+    Nint = 3
+
+    # number of elements
+    n = np.array([1, 10, 100])
+
+    # forcing function
+    ffunc = ffunc_beam
+
+    # forcing function arguments
+    ffunc_args = np.array([10., h])
+
+    # get the moment of inertia of the cross section
+    Ix, _, _ = moment_of_inertia_rectangle(b, h)
+    # print Ix*E
+    # quit()
+
+    # set case to use
+    case = 1
+
+    figure, axes = plt.subplots(2, 3, sharex=True, sharey=True)
+    max_deflection_fem = np.zeros([2, n.size])
+    max_deflection_thoeretical = np.zeros([2, n.size])
+    nodes = np.zeros([2, int(n.size)])
+
+    for p, i in zip(np.array([2, 3]), np.arange(0, 2)):
+
+        for Nell, j in zip(n, np.arange(0, n.size)):
+
+            # vector of element lengths
+            he = np.ones(Nell) / Nell
+
+            # vector of element locations
+            x = np.linspace(0, 1, 4 * Nell + 1)
+
+            # ID array
+            ID = get_id(case, Nell, p)
+
+            nodes[i, j] = Nell+p
+
+            tic = time.time()
+            K, F, d, sol, da = fem_solver(Nell, he, Nint, p, ID, E, Ix, ffunc=ffunc, ffunc_args=ffunc_args, case=case)
+            toc = time.time()
+            print he, Nell, K
+            print "Time to run fem solver: %.3f (s)" % (toc - tic)
+
+            u, x = get_u_of_x_approx(sol, he, Nell, Nint, p)
+            print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384., 0])
+            print "Time to solve for u(x): %.3f (s)" % (toc - tic)
+
+            u_exact = (ffunc(x, ffunc_args)*x**2)*(x**2+6.*l-4.*l*x)/(24.*E*Ix)
+            print "Finished"
+
+            print d, u, x[::-1]
+            # if Nell > 1:
+            axes[i,j].plot(x[:-1], u[:-1])
+            axes[i,j].plot(x[:-1], u_exact[:-1])
+
+            max_deflection_fem[i,j] = max(u)
+            max_deflection_thoeretical[i,j] = max(u_exact)
+
+    axes[0,0].set_title('$N_{ell}=1$')
+    axes[0,1].set_title('$N_{ell}=10$')
+    axes[0,2].set_title('$N_{ell}=100$')
+    axes[0,0].set_ylabel('Deflection, $p=2$')
+    axes[1,0].set_ylabel('Deflection, $p=3$')
+    axes[1,0].set_xlabel('X Position')
+    axes[1,1].set_xlabel('X Position')
+    axes[1,2].set_xlabel('X Position')
+
+    plt.show()
+
+
+    fig = plt.figure()
+
+    plt.plot(nodes[0,:], max_deflection_thoeretical[0,:], label='theoretical, p=2')
+    plt.plot(nodes[0,:], max_deflection_fem[0,:], label='fem, p=2')
+    plt.plot(nodes[1,:], max_deflection_thoeretical[1,:], label='theoretical, p=3')
+    plt.plot(nodes[1,:], max_deflection_fem[1,:], label='fem, p=3')
+    plt.xlabel('Nodes')
+    plt.ylabel('Max Deflection')
+    plt.legend(loc = 0)
+
+    plt.savefig('max_deflection_vs_n.pdf', transparent=True)
+    plt.show()
+
+
+
+    return
+
+def beam_solution_2():
+
+    # problem parameters
+    E = 1000000
+    b = 0.005
+    h = 0.005
+    l = 1.
+    Nint = 3
+    Nell = 10
+
+    # number of elements
+    H = np.array([0.1, 0.01, 0.005, 0.002, 0.001])
+
+    # forcing function
+    ffunc = ffunc_beam
+
+
+
+
+    # print Ix*E
+    # quit()
+
+    # set case to use
+    case = 1
+
+    figure, axes = plt.subplots(2, H.size, sharex=True, sharey=True)
+    max_deflection_fem = np.zeros([2, H.size])
+    max_deflection_thoeretical = np.zeros([2, H.size])
+    nodes = np.zeros([2, int(H.size)])
+
+    for p, i in zip(np.array([2, 3]), np.arange(0, 2)):
+
+        for h, j in zip(H, np.arange(0, H.size)):
+
+            # forcing function arguments
+            ffunc_args = np.array([10., h])
+
+            # get the moment of inertia of the cross section
+            Ix, _, _ = moment_of_inertia_rectangle(b, h)
+
+
+
+            # vector of element lengths
+            he = np.ones(Nell) / Nell
+
+            # vector of element locations
+            x = np.linspace(0, 1, 4 * Nell + 1)
+
+            # ID array
+            ID = get_id(case, Nell, p)
+
+            nodes[i, j] = Nell+p
+
+            tic = time.time()
+            K, F, d, sol, da = fem_solver(Nell, he, Nint, p, ID, E, Ix, ffunc=ffunc, ffunc_args=ffunc_args, case=case)
+            toc = time.time()
+            # print he, Nell, K
+            # print "Time to run fem solver: %.3f (s)" % (toc - tic)
+
+            u, x = get_u_of_x_approx(sol, he, Nell, Nint, p)
+            # print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384., 0])
+            # print "Time to solve for u(x): %.3f (s)" % (toc - tic)
+
+            u_exact = (ffunc(x, ffunc_args)*x**2)*(x**2+6.*l-4.*l*x)/(24.*E*Ix)
+
+            print "Finished"
+            print "Ix: ", Ix, "h: ", h
+            print "max def: ", np.max(u_exact)
+            # print d, u, x[::-1]
+            # if Nell > 1:
+            axes[i,j].plot(x[:-1], u[:-1])
+            axes[i,j].plot(x[:-1], u_exact[:-1])
+
+            max_deflection_fem[i,j] = max(u)
+            max_deflection_thoeretical[i,j] = max(u_exact)
+
+    axes[0,0].set_title('$N_{ell}=1$')
+    axes[0,1].set_title('$N_{ell}=10$')
+    axes[0,2].set_title('$N_{ell}=100$')
+    axes[0,0].set_ylabel('Deflection, $p=2$')
+    axes[1,0].set_ylabel('Deflection, $p=3$')
+    axes[1,0].set_xlabel('X Position')
+    axes[1,1].set_xlabel('X Position')
+    axes[1,2].set_xlabel('X Position')
+
+    plt.show()
+
+
+    fig = plt.figure()
+
+    plt.plot(l/H, max_deflection_thoeretical[0,:], label='theory p=2')
+    plt.plot(l/H, max_deflection_fem[0,:], label='fem p=2')
+    plt.plot(l/H, max_deflection_thoeretical[1,:], '--', label='theory p=3')
+    plt.plot(l/H, max_deflection_fem[1,:], label='fem p=3')
+    plt.legend()
+
+    plt.savefig('max_deflection_vs_h.pdf', transparent=True)
+    plt.show()
+
+    return
 
 if __name__ == "__main__":
 
@@ -796,12 +1051,15 @@ if __name__ == "__main__":
     #
     # input variables
 
-    p = 3                       # basis function order
-    Nell = 10                   # number of elements
-    Nint = 3                    # number of quadrature intervals
-    Nsamples = 3
+    # p = 3                       # basis function order
+    # Nell = 10                   # number of elements
+    # Nint = 3                    # number of quadrature intervals
+    # Nsamples = 3
     # run_constant(Nell, Nint, p)
     # run_linear(Nell, Nint, p)
     # sol = run_quadratic(Nell, Nint, p, Nsamples=Nsamples)
-    plot_error()
+    # plot_error()
     # plot_results()
+
+    beam_solution_1()
+    beam_solution_2()
