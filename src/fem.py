@@ -111,7 +111,9 @@ def fem_solver(Nell, he, Nint, p, ID, E, I, ffunc=ffunc_quadratic, ffunc_args=np
                     # k_basis[a,b] = ((-1)**(a+b))/he[e]
                     # k_basis[a, b] = Ndxdx[a]*E*I*Ndxdx[b]*dxdxi*w[i]
 
-                    ke[int(a), int(b)] += Ndx[int(a)]*E*I*Ndx[int(b)]*w[int(i)]*dxdxi
+                    # ke[int(a), int(b)] += Ndx[int(a)]*E*I*Ndx[int(b)]*w[int(i)]*dxdxi
+                    # ke[int(a), int(b)] += Ndx[int(a)]*E*I*Ndx[int(b)]*w[int(i)]*dxdxi
+                    ke[int(a), int(b)] += Ndxdx[int(a)]*E*I*Ndxdx[int(b)]*w[int(i)]*dxdxi
 
                     # K[int(LM[a, e - 1] - 1), int(LM[b, e - 1] - 1)] += Ndx[a]*E*I*Ndx[b]*w[i]*dxdxi
                 fe[a] += N[a] * ffunc(x, ffunc_args) * dxdxi * w[i]
@@ -139,7 +141,7 @@ def fem_solver(Nell, he, Nint, p, ID, E, I, ffunc=ffunc_quadratic, ffunc_args=np
     if case == 0:
         dda = np.append(d, 0.)
     elif case == 1:
-        da = np.append(5., d)
+        da = np.append(0., d)
     elif case == 2:
         da = np.append(d, 0.)
 
@@ -276,6 +278,7 @@ def get_u_of_x_approx(sol, he, Nell, Nint, p):
             # print x, xi_sample[i]
             for a in np.arange(0, p + 1):
                 u[int(e * Nint + i)] += N[a] * sol[int(IEN[a, e]) - 1]
+
     return u, x_sample
 
 def get_u_of_x_exact(x, q, ffunc_num):
@@ -331,13 +334,15 @@ def get_id(case, Nell, p):
     # cantilever L
     if case == 0:
         # print 'here in ', case
-        ID[0:Nell] = np.arange(1,Nell+1)
+        ID[0:Nell+p-2] = np.arange(1,Nell+p-1)
 
 
     # cantilever R
     elif case == 1:
         # print 'here in ', case
-        ID[p:] = np.arange(1,Nell+1)
+        print np.arange(1,Nell+p)
+        ID[2:] = np.arange(1,Nell+p-1)
+
 
     # coding two part one
     elif case == 2:
@@ -345,7 +350,7 @@ def get_id(case, Nell, p):
 
     else:
         raise ValueError('invalid ID case')
-
+    # quit()
     return ID
 
 def ien_array(Nell, p):
@@ -603,7 +608,7 @@ def plot_error():
 
     Nint = 3
 
-    n = np.array([1, 10, 100, 1000])
+    n = np.array([1, 10, 100])
 
     theoretical_error = np.zeros([2, n.size])
     real_error = np.zeros([2, n.size])
@@ -649,8 +654,8 @@ def plot_error():
 
             # print "ffunc: %i, Nell: %i, Error: %f" % (ffunc_num, Nell, error[i, j])
 
-        r_slope[i] = np.log(real_error[i, 2]/real_error[i, 0])/np.log(n[2]/n[0])
-        t_slope[i] = np.log(theoretical_error[i, -1]/theoretical_error[i, 0])/np.log(n[-1]/n[0])
+        r_slope[i] = -np.log(real_error[i, 2]/real_error[i, 0])/np.log(n[2]/n[0])
+        t_slope[i] = -np.log(theoretical_error[i, -1]/theoretical_error[i, 0])/np.log(n[-1]/n[0])
 
     # print (np.log(error[1])-np.log(error[0]))/(x[1]-x[0])
     # print real_error.shape
@@ -804,7 +809,7 @@ def run_quadratic(Nell, Nint, p, E=1, I=1, Nsamples=3):
 
     return sol
 
-def plot_results(solution, p, Nell, Nsamples, ID):
+def plot_results(solution, p, Nell, Nsamples, ID, Nint=3):
     print "here"
     # create sample vector
     xi_sample = np.linspace(-1., 1., Nsamples)
@@ -887,7 +892,10 @@ def beam_solution_1():
 
             # ID array
             ID = get_id(case, Nell, p)
-
+            # if Nell == 10:
+            #
+            #     print ID
+            #     quit()
             nodes[i, j] = Nell+p
 
             tic = time.time()
@@ -905,10 +913,11 @@ def beam_solution_1():
 
             print d, u, x[::-1]
             # if Nell > 1:
-            axes[i,j].plot(x[:-1], u[:-1])
-            axes[i,j].plot(x[:-1], u_exact[:-1])
+            axes[i,j].plot(x[:-1], u_exact[:-1], '-')
+            axes[i,j].plot(x[:-1], u[:-1], '--r')
 
             max_deflection_fem[i,j] = max(u)
+            max_deflection_thoeretical[i,j] = max(u_exact)
             max_deflection_thoeretical[i,j] = max(u_exact)
 
     axes[0,0].set_title('$N_{ell}=1$')
@@ -1062,4 +1071,4 @@ if __name__ == "__main__":
     # plot_results()
 
     beam_solution_1()
-    beam_solution_2()
+    # beam_solution_2()
