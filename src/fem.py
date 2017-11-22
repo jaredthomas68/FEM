@@ -231,19 +231,20 @@ def quadrature_rule(Nint):
 
     return gp, w
 
-def get_u_of_x_approx(sol, he, Nell, Nint, p):
+def get_u_of_x_approx(sol, he, Nell, Nint, p, Nsamples):
 
     # get IEN array
     IEN = ien_array(Nell, p)
 
     # get quadrature points and weights in local coordinants
-    xi_sample, w = quadrature_rule(Nint)
+    # xi_sample, w = quadrature_rule(Nint)
+    xi_sample = np.linspace(-1, 1, Nsamples)
 
     # find number of samples
-    Nsamples = xi_sample.size
+    # Nsamples = xi_sample.size
 
     # initialize displacement vector
-    u = np.zeros(Nell * Nint+1)
+    u = np.zeros(Nell * Nsamples+1)
 
     # initialize error vector
     error = np.zeros(Nell * Nint)
@@ -265,10 +266,11 @@ def get_u_of_x_approx(sol, he, Nell, Nint, p):
 
     # loop over elements
     print "start loop"
+    count = 0
     for e in np.arange(0, Nell):
         # loop over samples
         # for i in np.arange(0, Nsamples):
-        for i in np.arange(0, xi_sample.size):
+        for i in np.arange(0, Nsamples):
             B, Bdxi, Bdxidxi = local_bernstein(xi_sample[i], p)
             N, Nedxi, Nedxidxi = local_bezier_extraction(p, e + 1, Nell, B, Bdxi, Bdxidxi)
             Ndx, Ndxdx, dxdxi, x = global_bezier_extraction(ga[e:e + p + 1], N, Nedxi, Nedxidxi)
@@ -276,9 +278,13 @@ def get_u_of_x_approx(sol, he, Nell, Nint, p):
             x_sample[e*Nsamples+i] = x
 
             # print x, xi_sample[i]
+            u_temp = 0.
             for a in np.arange(0, p + 1):
-                u[int(e * Nint + i)] += N[a] * sol[int(IEN[a, e]) - 1]
+                u_temp += N[a] * sol[int(IEN[a, e]) - 1]
 
+            # u[int(e * Nint + i)]
+            u[count] = u_temp
+            count += 1
     return u, x_sample
 
 def get_u_of_x_exact(x, q, ffunc_num):
@@ -873,12 +879,16 @@ def beam_solution_1():
     # quit()
 
     # set case to use
-    case = 1
+    case = 0
 
     figure, axes = plt.subplots(2, 3, sharex=True, sharey=True)
     max_deflection_fem = np.zeros([2, n.size])
     max_deflection_thoeretical = np.zeros([2, n.size])
     nodes = np.zeros([2, int(n.size)])
+
+    x_exact = abs(np.linspace(0, 1, 50)-1.)
+    u_exact = (ffunc(x_exact, ffunc_args) * x_exact ** 2) * (x_exact ** 2 + 6. * l - 4. * l * x_exact) / (24. * E * Ix)
+    x_exact = np.linspace(0, 1, 50)
 
     for p, i in zip(np.array([2, 3]), np.arange(0, 2)):
 
@@ -903,22 +913,24 @@ def beam_solution_1():
             toc = time.time()
             print he, Nell, K
             print "Time to run fem solver: %.3f (s)" % (toc - tic)
-
-            u, x = get_u_of_x_approx(sol, he, Nell, Nint, p)
+            Nsamples = int(100./Nell)
+            u, x = get_u_of_x_approx(sol, he, Nell, Nint, p, Nsamples)
             print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384., 0])
             print "Time to solve for u(x): %.3f (s)" % (toc - tic)
 
-            u_exact = (ffunc(x, ffunc_args)*x**2)*(x**2+6.*l-4.*l*x)/(24.*E*Ix)
+
             print "Finished"
 
             print d, u, x[::-1]
             # if Nell > 1:
-            axes[i,j].plot(x[:-1], u_exact[:-1], '-')
-            axes[i,j].plot(x[:-1], u[:-1], '--r')
+            axes[i,j].plot(x_exact[:-1], u_exact[:-1], '-r', linewidth=1.5)
+            axes[i,j].plot(x[:-1], u[:-1], '--b')
 
             max_deflection_fem[i,j] = max(u)
-            max_deflection_thoeretical[i,j] = max(u_exact)
-            max_deflection_thoeretical[i,j] = max(u_exact)
+            max_deflection_thoeretical[i, j] = max(u_exact)
+            # max_deflection_thoeretical[i, j] = max(u_exact)
+
+
 
     axes[0,0].set_title('$N_{ell}=1$')
     axes[0,1].set_title('$N_{ell}=10$')
@@ -934,14 +946,16 @@ def beam_solution_1():
 
     fig = plt.figure()
 
-    plt.plot(nodes[0,:], max_deflection_thoeretical[0,:], label='theoretical, p=2')
-    plt.plot(nodes[0,:], max_deflection_fem[0,:], label='fem, p=2')
-    plt.plot(nodes[1,:], max_deflection_thoeretical[1,:], label='theoretical, p=3')
-    plt.plot(nodes[1,:], max_deflection_fem[1,:], label='fem, p=3')
+    plt.plot(nodes[0,:], max_deflection_thoeretical[0,:], 'r', label='theoretical')
+    plt.plot(nodes[0,:], max_deflection_fem[0,:],'--ob', label='fem, p=2')
+    # plt.plot(nodes[1,:], max_deflection_thoeretical[1,:], label='theoretical, p=3')
+    plt.plot(nodes[1,:], max_deflection_fem[1,:], '--og', label='fem, p=3')
     plt.xlabel('Nodes')
     plt.ylabel('Max Deflection')
+    # plt.ylim([0.0028, 0.0032])
     plt.legend(loc = 0)
 
+    plt.tight_layout()
     plt.savefig('max_deflection_vs_n.pdf', transparent=True)
     plt.show()
 
@@ -965,7 +979,7 @@ def beam_solution_2():
     ffunc = ffunc_beam
 
     # set case to use
-    case = 1
+    case = 0
 
     figure, axes = plt.subplots(2, H.size, sharex=True, sharey=True)
     max_deflection_fem = np.zeros([2, H.size])
@@ -1001,20 +1015,27 @@ def beam_solution_2():
             # print he, Nell, K
             # print "Time to run fem solver: %.3f (s)" % (toc - tic)
 
-            u, x = get_u_of_x_approx(sol, he, Nell, Nint, p)
+            Nsamples = int(100. / Nell)
+            u, x = get_u_of_x_approx(sol, he, Nell, Nint, p, Nsamples)
             # print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384., 0])
             # print "Time to solve for u(x): %.3f (s)" % (toc - tic)
 
             # x = x[::-1]
-            u_exact = (ffunc(x, ffunc_args)*x**2)*(x**2+6.*l-4.*l*x)/(24.*E*Ix)
+
+            x_exact = abs(np.linspace(0, 1, 50)-1.)
+            u_exact = (ffunc(x_exact, ffunc_args) * (x_exact) ** 2) * (x_exact ** 2 + 6. * l - 4. * l * x_exact) / (
+            24. * E * Ix)
+            x_exact = abs(np.linspace(0, 1, 50))
             print "Finished"
             print "Ix: ", Ix, "h: ", h
             print "max def: ", np.max(u_exact)
             # print d, u, x[::-1]
             # if Nell > 1:
-            axes[i,j].plot(x[:-1], u_exact[:-1])
 
-            axes[i,j].plot(x[:-1], u[:-1], '--r')
+            axes[i, j].plot(x_exact[:-1], u_exact[:-1], 'r', linewidth=1.5)
+            axes[i,j].plot(x[:-1], u[:-1], '--b')
+
+
 
             max_deflection_fem[i,j] = max(u)
             max_deflection_thoeretical[i,j] = max(u_exact)
@@ -1037,13 +1058,14 @@ def beam_solution_2():
 
     fig = plt.figure()
 
-    plt.plot(l/H, max_deflection_thoeretical[0,:], '-', label='theory')
-    plt.plot(l/H, max_deflection_fem[0,:], '--', label='fem p=2')
-    plt.plot(l/H, max_deflection_fem[1,:], '--', label='fem p=3')
+    plt.plot(l/H, max_deflection_thoeretical[0,:], '-r', label='theory')
+    plt.plot(l/H, max_deflection_fem[0,:], '--ob', label='fem p=2')
+    plt.plot(l/H, max_deflection_fem[1,:], '--og', label='fem p=3')
     plt.legend(loc=0)
     plt.xlabel('Beam Slenderness ($l/h$)')
     plt.ylabel('Deflection')
-
+    # plt.ylim([0.0028, 0.0032])
+    plt.tight_layout()
     plt.savefig('max_deflection_vs_h.pdf', transparent=True)
     plt.show()
 
