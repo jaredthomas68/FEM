@@ -139,11 +139,11 @@ def fem_solver(Nell, he, Nint, p, ID, E, I, ffunc=ffunc_quadratic, ffunc_args=np
     d = solve_for_d(K, F)
     da = np.copy(d)
     if case == 0:
-        dda = np.append(d, 0.)
-    elif case == 1:
-        da = np.append(0., d)
-    elif case == 2:
         da = np.append(d, 0.)
+    elif case == 2:
+        da = np.append(np.array([0., 0.]), d)
+    elif case == 1:
+        da = np.append(d, np.array([0., 0.]))
 
     # determine the number of nodes
     Nnodes = Nell + p
@@ -159,7 +159,7 @@ def fem_solver(Nell, he, Nint, p, ID, E, I, ffunc=ffunc_quadratic, ffunc_args=np
         if ID[a] == 0:
             continue
         else:
-            solution[a] = d[int(ID[a])-1]
+            solution[a] = da[int(ID[a])-1]
     # print 'solution: ', solution
     return K, F, d, solution, da
 
@@ -954,7 +954,6 @@ def beam_solution_2():
     # problem parameters
     E = 1000000
     b = 0.005
-    h = 0.005
     l = 1.
     Nint = 3
     Nell = 10
@@ -964,12 +963,6 @@ def beam_solution_2():
 
     # forcing function
     ffunc = ffunc_beam
-
-
-
-
-    # print Ix*E
-    # quit()
 
     # set case to use
     case = 1
@@ -1012,38 +1005,44 @@ def beam_solution_2():
             # print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384., 0])
             # print "Time to solve for u(x): %.3f (s)" % (toc - tic)
 
+            # x = x[::-1]
             u_exact = (ffunc(x, ffunc_args)*x**2)*(x**2+6.*l-4.*l*x)/(24.*E*Ix)
-
             print "Finished"
             print "Ix: ", Ix, "h: ", h
             print "max def: ", np.max(u_exact)
             # print d, u, x[::-1]
             # if Nell > 1:
-            axes[i,j].plot(x[:-1], u[:-1])
             axes[i,j].plot(x[:-1], u_exact[:-1])
+
+            axes[i,j].plot(x[:-1], u[:-1], '--r')
 
             max_deflection_fem[i,j] = max(u)
             max_deflection_thoeretical[i,j] = max(u_exact)
 
-    axes[0,0].set_title('$N_{ell}=1$')
-    axes[0,1].set_title('$N_{ell}=10$')
-    axes[0,2].set_title('$N_{ell}=100$')
+    axes[0,0].set_title('$h=%.1f$' % H[0])
+    axes[0,1].set_title('$h=%.2f$' % H[1])
+    axes[0,2].set_title('$h=%.3f$' % H[2])
+    axes[0,3].set_title('$h=%.3f$' % H[3])
+    axes[0,4].set_title('$h=%.3f$' % H[4])
     axes[0,0].set_ylabel('Deflection, $p=2$')
     axes[1,0].set_ylabel('Deflection, $p=3$')
     axes[1,0].set_xlabel('X Position')
     axes[1,1].set_xlabel('X Position')
     axes[1,2].set_xlabel('X Position')
+    axes[1,3].set_xlabel('X Position')
+    axes[1,4].set_xlabel('X Position')
 
     plt.show()
 
 
     fig = plt.figure()
 
-    plt.plot(l/H, max_deflection_thoeretical[0,:], label='theory p=2')
-    plt.plot(l/H, max_deflection_fem[0,:], label='fem p=2')
-    plt.plot(l/H, max_deflection_thoeretical[1,:], '--', label='theory p=3')
-    plt.plot(l/H, max_deflection_fem[1,:], label='fem p=3')
-    plt.legend()
+    plt.plot(l/H, max_deflection_thoeretical[0,:], '-', label='theory')
+    plt.plot(l/H, max_deflection_fem[0,:], '--', label='fem p=2')
+    plt.plot(l/H, max_deflection_fem[1,:], '--', label='fem p=3')
+    plt.legend(loc=0)
+    plt.xlabel('Beam Slenderness ($l/h$)')
+    plt.ylabel('Deflection')
 
     plt.savefig('max_deflection_vs_h.pdf', transparent=True)
     plt.show()
@@ -1071,4 +1070,4 @@ if __name__ == "__main__":
     # plot_results()
 
     beam_solution_1()
-    # beam_solution_2()
+    beam_solution_2()
