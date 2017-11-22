@@ -940,7 +940,9 @@ def beam_solution_1():
     axes[1,0].set_xlabel('X Position')
     axes[1,1].set_xlabel('X Position')
     axes[1,2].set_xlabel('X Position')
-
+    plt.tight_layout()
+    # axes[0,0].legend('Exact', 'FEM')
+    plt.savefig('beam1_deflection.pdf')
     plt.show()
 
 
@@ -1052,7 +1054,8 @@ def beam_solution_2():
     axes[1,2].set_xlabel('X Position')
     axes[1,3].set_xlabel('X Position')
     axes[1,4].set_xlabel('X Position')
-
+    plt.tight_layout()
+    plt.savefig('beam2_deflection.pdf')
     plt.show()
 
 
