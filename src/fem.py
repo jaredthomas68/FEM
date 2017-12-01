@@ -175,7 +175,6 @@ def fem_solver(Nell, he, Nint, p, ID, E, I, ffunc=ffunc_quadratic, ffunc_args=np
     # print 'solution: ', solution
     return K, F, d, solution, da
 
-
 def get_D(A, E, mu, A1s, A2s, I1, I2, J):
     """
     Defines the relationship matrix between stress and strain
@@ -200,6 +199,16 @@ def get_D(A, E, mu, A1s, A2s, I1, I2, J):
 
     return D
 
+def get_B(Na, dNadxi):
+
+    Ba = np.array([[0.,     0.,     dNadxi, 0.,     0.,     0.    ],
+                   [dNadxi, 0.,     0.,     0.,     -Na,    0.    ],
+                   [0.,     dNadxi, 0.,     Na,     0.,     0.    ],
+                   [0.,     0.,     0.,     dNadxi, 0.,     0.    ],
+                   [0.,     0.,     0.,     0.,     dNadxi, 0.    ],
+                   [0.,     0.,     0.,     0.,     0.,     dNadxi]])
+
+    return Ba
 
 def solve_for_d(K, F):
 
@@ -384,7 +393,7 @@ def get_id(case, Nell, p):
     # cantilever R
     elif case == 1:
         # print 'here in ', case
-        print np.arange(1,Nell+p)
+        # print np.arange(1,Nell+p)
         ID[2:] = np.arange(1,Nell+p-1)
 
 

@@ -85,6 +85,7 @@ class test_setup_functions(unittest.TestCase):
         self.IEM_10_3_R = IEM_10_3_R = ien_array(Nell, p)
         self.LM_10_3_R = LM_10_3_R = lm_array(Nell, p, ID_10_3_R, IEM_10_3_R)
 
+        # set up to test get_D
         A = 1.
         E = 1E6
         mu = 0.1
@@ -92,7 +93,12 @@ class test_setup_functions(unittest.TestCase):
         d = 0.01
         I1, I2, _, J = moment_of_inertia_rod(d)
         self.D = get_D(A, E, mu, A1s, A2s, I1, I2, J)
-        print self.D
+
+        # set up to test get_B
+        Na = 1.
+        dNadxi = 0.5
+        self.Ba = get_B(Na, dNadxi)
+
         # print GA_10_3
         # print knots_10_3
         # print Xe_10_3
@@ -149,6 +155,14 @@ class test_setup_functions(unittest.TestCase):
                                                   [0., 0., 0., 4.90873852E-4, 0., 0.],
                                                   [0., 0., 0., 0., 4.90873852E-4, 0.],
                                                   [0., 0., 0., 0., 0., 9.81747704E-11]]), rtol=1E-6, atol=1E-6)
+
+    def testing_getB(self):
+        np.testing.assert_equal(self.Ba, np.array([[0.,     0.,     0.5,    0.,     0.,     0.    ],
+                                                   [0.5,    0.,     0.,     0.,    -1.,     0.    ],
+                                                   [0.,     0.5,    0.,     1.,     0.,     0.    ],
+                                                   [0.,     0.,     0.,     0.5,    0.,     0.    ],
+                                                   [0.,     0.,     0.,     0.,     0.5,    0.    ],
+                                                   [0.,     0.,     0.,     0.,     0.,     0.5   ]]))
 
 class test_basis_functions(unittest.TestCase):
 
