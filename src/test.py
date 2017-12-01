@@ -85,6 +85,14 @@ class test_setup_functions(unittest.TestCase):
         self.IEM_10_3_R = IEM_10_3_R = ien_array(Nell, p)
         self.LM_10_3_R = LM_10_3_R = lm_array(Nell, p, ID_10_3_R, IEM_10_3_R)
 
+        A = 1.
+        E = 1E6
+        mu = 0.1
+        A1s = A2s = 5./6.
+        d = 0.01
+        I1, I2, _, J = moment_of_inertia_rod(d)
+        self.D = get_D(A, E, mu, A1s, A2s, I1, I2, J)
+        print self.D
         # print GA_10_3
         # print knots_10_3
         # print Xe_10_3
@@ -123,8 +131,8 @@ class test_setup_functions(unittest.TestCase):
 
     def testing_lm(self):
         np.testing.assert_equal(self.LM_4_2, np.array([[1.,  2.,  3.,  4.],
-                                                        [ 2.,  3.,  4.,  0.],
-                                                        [ 3.,  4.,  0.,  0.]]))
+                                                       [ 2.,  3.,  4.,  0.],
+                                                       [ 3.,  4.,  0.,  0.]]))
         np.testing.assert_equal(self.LM_10_3, np.array([[  1.,   2.,   3.,   4.,   5.,   6.,   7.,    8.,   9.,  10.],
                                                         [  2.,   3.,   4.,   5.,   6.,   7.,   8.,   9.,  10.,  11.],
                                                         [  3.,   4.,   5.,   6.,   7.,   8.,   9.,  10.,  11.,  0.],
@@ -133,6 +141,14 @@ class test_setup_functions(unittest.TestCase):
                                                           [0., 1., 2., 3., 4., 5., 6., 7., 8.,   9.],
                                                           [1., 2., 3., 4., 5., 6., 7., 8., 9.,  10.],
                                                           [2., 3., 4., 5., 6., 7., 8., 9., 10., 11.]]))
+
+    def testing_getD(self):
+        np.testing.assert_allclose(self.D, np.array([[1E6, 0.,  0., 0., 0.,   0.],
+                                                  [0., 8.33333333E-2, 0.,   0., 0., 0.],
+                                                  [0., 0.,   8.33333333E-2, 0., 0., 0.],
+                                                  [0., 0., 0., 4.90873852E-4, 0., 0.],
+                                                  [0., 0., 0., 0., 4.90873852E-4, 0.],
+                                                  [0., 0., 0., 0., 0., 9.81747704E-11]]), rtol=1E-6, atol=1E-6)
 
 class test_basis_functions(unittest.TestCase):
 
