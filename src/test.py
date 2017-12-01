@@ -61,7 +61,7 @@ class test_setup_functions(unittest.TestCase):
 
         Nell = 4
         p = 2
-        case = 'cantilever L'
+        case = 0
         he = np.ones(Nell) / Nell
         self.Xe_4_2 = Xe_4_2 = node_locations_x(Nell, he)
         self.knots_4_2 = knots_4_2 = knot_vector(Nell, Xe_4_2, p)
@@ -80,7 +80,7 @@ class test_setup_functions(unittest.TestCase):
         self.IEM_10_3 = IEM_10_3 = ien_array(Nell, p)
         self.LM_10_3 = LM_10_3 = lm_array(Nell, p, ID_10_3, IEM_10_3)
 
-        case = 'cantilever R'
+        case = 1
         self.ID_10_3_R = ID_10_3_R = get_id(case, Nell, p)
         self.IEM_10_3_R = IEM_10_3_R = ien_array(Nell, p)
         self.LM_10_3_R = LM_10_3_R = lm_array(Nell, p, ID_10_3_R, IEM_10_3_R)
@@ -109,8 +109,8 @@ class test_setup_functions(unittest.TestCase):
 
     def testing_id(self):
         np.testing.assert_equal(self.ID_4_2, np.array([1., 2., 3., 4., 0., 0.]))
-        np.testing.assert_equal(self.ID_10_3, np.array([1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 0., 0., 0.]))
-        np.testing.assert_equal(self.ID_10_3_R, np.array([0., 0., 0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10.]))
+        np.testing.assert_equal(self.ID_10_3, np.array([1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 0., 0.]))
+        np.testing.assert_equal(self.ID_10_3_R, np.array([0., 0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11.]))
 
     def testing_iem(self):
         np.testing.assert_equal(self.IEM_4_2, np.array([[1.,  2.,  3.,  4.],
@@ -125,14 +125,14 @@ class test_setup_functions(unittest.TestCase):
         np.testing.assert_equal(self.LM_4_2, np.array([[1.,  2.,  3.,  4.],
                                                         [ 2.,  3.,  4.,  0.],
                                                         [ 3.,  4.,  0.,  0.]]))
-        np.testing.assert_equal(self.LM_10_3, np.array([[  1.,   2.,   3.,   4.,   5.,   6.,   7.,   8.,   9.,  10.],
-                                                         [  2.,   3.,   4.,   5.,   6.,   7.,   8.,   9.,  10.,  0.],
-                                                         [  3.,   4.,   5.,   6.,   7.,   8.,   9.,  10.,  0.,  0.],
-                                                         [  4.,   5.,   6.,   7.,   8.,   9.,  10.,  0.,  0.,  0.]]))
-        np.testing.assert_equal(self.LM_10_3_R, np.array([[0., 0., 0., 1., 2., 3., 4., 5., 6., 7.],
-                                                        [0., 0., 1., 2., 3., 4., 5., 6., 7., 8.],
-                                                        [0., 1., 2., 3., 4., 5., 6., 7., 8., 9.],
-                                                        [1., 2., 3., 4., 5., 6., 7., 8., 9., 10.]]))
+        np.testing.assert_equal(self.LM_10_3, np.array([[  1.,   2.,   3.,   4.,   5.,   6.,   7.,    8.,   9.,  10.],
+                                                        [  2.,   3.,   4.,   5.,   6.,   7.,   8.,   9.,  10.,  11.],
+                                                        [  3.,   4.,   5.,   6.,   7.,   8.,   9.,  10.,  11.,  0.],
+                                                        [  4.,   5.,   6.,   7.,   8.,   9.,  10.,  11.,  0.,   0.]]))
+        np.testing.assert_equal(self.LM_10_3_R, np.array([[0., 0., 1., 2., 3., 4., 5., 6., 7.,   8.],
+                                                          [0., 1., 2., 3., 4., 5., 6., 7., 8.,   9.],
+                                                          [1., 2., 3., 4., 5., 6., 7., 8., 9.,  10.],
+                                                          [2., 3., 4., 5., 6., 7., 8., 9., 10., 11.]]))
 
 class test_basis_functions(unittest.TestCase):
 

@@ -60,8 +60,19 @@ def moment_of_inertia_rectangle(b, h):
 
     return Ix, Iy, Ixy
 
+def moment_of_inertia_rod(d):
+
+    Ix = (np.pi*d**4)/64.
+    Iy = (np.pi*d**4)/64.
+    Ixy = 0.
+    J = (np.pi*d**4)/32.
+
+    return Ix, Iy, Ixy, J
+
 def fem_solver(Nell, he, Nint, p, ID, E, I, ffunc=ffunc_quadratic, ffunc_args=np.array([0., 0., 1.]), case=2):
+
     print "entering solver"
+
     # define LM array
     IEN = ien_array(Nell, p)
     LM = lm_array(Nell, p, ID, IEN)
@@ -90,7 +101,7 @@ def fem_solver(Nell, he, Nint, p, ID, E, I, ffunc=ffunc_quadratic, ffunc_args=np
         ke = np.zeros((p + 1, p + 1))
         fe = np.zeros(p + 1)
 
-        # solve for local stifness matrix and force vector
+        # solve for local stiffness matrix and force vector
         for i in np.arange(0, Nint):
             # print "in integration loop"
             B, Bdxi, Bdxidxi = local_bernstein(xi[i], p)
@@ -160,8 +171,35 @@ def fem_solver(Nell, he, Nint, p, ID, E, I, ffunc=ffunc_quadratic, ffunc_args=np
             continue
         else:
             solution[a] = da[int(ID[a])-1]
+
     # print 'solution: ', solution
     return K, F, d, solution, da
+
+
+def get_D(A, E, mu, A1s, A2s, I1, I2, J):
+    """
+    Defines the relationship matrix between stress and strain
+
+    :param A: cross sectional area of the beam
+    :param E: Young's modulous of elasticity
+    :param mu: essentiall the shear modulous (E/(2*(1+poisson's ratio))
+    :param A1s: shear correction (5/6)
+    :param A2s: shear correction (5/6)
+    :param I1: moment of inertia
+    :param I2: moment of inertia
+    :param J: polar moment of inertia
+    :return D: variation on stiffness matrix
+    """
+
+    D = np.array([[E*A, 0.,     0.,     0.,   0.,   0.],
+                  [0.,  mu*A1s, 0.,     0.,   0.,   0.],
+                  [0.,  0.,     mu*A2s, 0.,   0.,   0.],
+                  [0.,  0.,     0.,     E*I1, 0.,   0.],
+                  [0.,  0.,     0.,     0.,   E*I2, 0.],
+                  [0.,  0.,     0.,     0.,   0.,   mu*J]])
+
+    return D
+
 
 def solve_for_d(K, F):
 
