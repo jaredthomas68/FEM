@@ -61,14 +61,18 @@ class test_setup_functions(unittest.TestCase):
 
         Nell = 4
         p = 2
+        Ndof = 6
         case = 0
         he = np.ones(Nell) / Nell
         self.Xe_4_2 = Xe_4_2 = node_locations_x(Nell, he)
         self.knots_4_2 = knots_4_2 = knot_vector(Nell, Xe_4_2, p)
         self.GA_4_2 = GA_4_2 = greville_abscissae(self.knots_4_2, p)
         self.ID_4_2 = ID_4_2 = get_id(case, Nell, p)
-        self.IEM_4_2 = IEM_4_2 = ien_array(Nell, p)
-        self.LM_4_2 = LM_4_2 = lm_array(Nell, p, ID_4_2, IEM_4_2)
+        print self.ID_4_2
+        self.IEM_4_2 = IEM_4_2 = ien_array(Nell, p, Ndof)
+        print self.IEM_4_2
+        self.LM_4_2 = LM_4_2 = lm_array(Nell, p, ID_4_2, IEM_4_2, Ndof)
+        print self.LM_4_2
 
         Nell = 10
         p = 3
