@@ -41,18 +41,26 @@ def ffunc_cubic(x, a=np.array([0., 0., 0., 10.])):
 
     return f
 
-def ffunc_beam(x, a=np.array([10, 0.005]), Ndof=6):
+def ffunc_beam(xr, a=np.array([10, 0.005, 0]), Ndof=6):
     """
     Forcing function defined for coding 2 part 2
-    :param x: location in global reference frame
+    :param xr: location on beam normalized to be in [0, 1]
     :param a: [a, h]
     :return: forcing function value
     """
+    # load cases corresponding to a[-1]
+    # 0: constant axial load
+    # 1: constant transverse load
+    # 2: Linearly distributed transverse load (0 at left, N at right)
 
-    # f = a[0]*a[1]**3
     f = a[0]
-    F = np.zeros(Ndof)
-    F[2] = f
+    F = np.zeros([Ndof, xr.size])
+    if a[-1] == 0:
+        F[2, :] = f
+    elif a[-1] == 1:
+        F[0, :] = -f
+    elif a[-1] == 2:
+        F[0, :] = -xr*f
     return F
 
 def moment_of_inertia_rectangle(b, h):
@@ -95,6 +103,9 @@ def fem_solver(Nell, he, Nint, p, ID, E, I1, I2, J, A, nu, ffunc=ffunc_quadratic
     # get node locations in global coordinates
     xe = node_locations_x(Nell, he)
 
+    # find length of beam
+    L = np.sum(he)
+
     # get the knot vector
     S = knot_vector(Nell, xe, p)
 
@@ -121,7 +132,7 @@ def fem_solver(Nell, he, Nint, p, ID, E, I1, I2, J, A, nu, ffunc=ffunc_quadratic
             Ndx, Ndxdx, dxdxi, x = global_bezier_extraction(ga[e-1:e+p],N, Nedxi, Nedxidxi)
 
             # get f for each dof at this location
-            f = ffunc(x, ffunc_args, Ndof)
+            f = ffunc(x/L, ffunc_args, Ndof)
 
             # get base k matrix for element e
             for a in np.arange(0, p+1):
@@ -350,7 +361,7 @@ def get_u_of_x_approx(sol, he, Nell, Nint, p, ID, Nsamples, Ndof=6):
             for a in np.arange(0, p + 1):
                 for idof in np.arange(0, Ndof):
                     # idx = int(IEN[a*Ndof+idof, e]) - 1
-                    u_temp[idof] += N[a] * sol[int(LM[a*Ndof+idof, e]+Ndof) - 1]
+                    u_temp[idof] += N[a] * sol[int(LM[a*Ndof+idof, e]) - 1]
                     # if np.any(u_temp) > 0:
                     #     print "success"
                     #     quit()
@@ -405,8 +416,8 @@ def greville_abscissae(S, p):
 
     return GA
 
-def get_id(case, Nell, p):
-    Ndof = 6
+def get_id(case, Nell, p, Ndof=6):
+
     ID = np.zeros([Ndof, Nell+p])
 
     # cantilever L
@@ -430,8 +441,19 @@ def get_id(case, Nell, p):
     elif case == 2:
         ID[0:Nell+p-1] = np.arange(1, Nell+p)
 
+    # simply supported (pin left, roller right)
+    elif case == 3:
+        count = 0
+        for i in np.arange(0, Nell + p):
+            for j in np.arange(0, Ndof):
+                if i == 0 and j != 4:
+                    continue
+                elif i == Nell + p - 1 and (j == 0 or j == 1 or j == 3 or j == 5):
+                    continue
+                count += 1
+                ID[j, i] = count
     else:
-        raise ValueError('invalid ID case')
+        raise ValueError('invalid support case')
     # quit()
     return ID
 
@@ -953,18 +975,6 @@ def beam_solution_1():
     Ndof = 6
     Px = 10.
 
-    # number of elements
-    n = np.array([1, 10])
-
-    # order of basis
-    p_vector = np.array([1])
-
-    # forcing function
-    ffunc = ffunc_beam
-
-    # forcing function arguments
-    ffunc_args = np.array([Px, 1.])
-
     # get the moment of inertia of the cross section
     # Ix, Iy, _ = moment_of_inertia_rectangle(b, h)
     Ix, Iy, _ = moment_of_inertia_rod(d)
@@ -974,20 +984,66 @@ def beam_solution_1():
     # print Ix*E
     # quit()
 
-    # set case to use
-    case = 0
+    # set cases to use
+    coding_3_problem = 4
+
+    # support_case = 0        # 0: cantilever fixed on the left
+    #                         # 1: cantilever fixed on the right
+    #                         # 2: coding 2 part 1
+    #                         # 3: simply supported (pin left, roller right)
+    #
+    # load_case = 0           # 0: constant axial load
+    #                         # 1: constant transverse load
+    #                         # 2: Linearly distributed transverse load (0 at left, N at right)
+
+    if coding_3_problem == 2:
+        support_case = 0
+        load_case = 0
+        # number of elements
+        n = np.array([1, 10])
+        # order of basis
+        p_vector = np.array([1])
+    elif coding_3_problem == 3:
+        support_case = 0
+        load_case = 1
+        # number of elements
+        n = np.array([10, 100])
+        # order of basis
+        p_vector = np.array([1, 2, 3])
+    elif coding_3_problem == 4:
+        support_case = 3
+        load_case = 2
+        # number of elements
+        n = np.array([10, 100])
+        # order of basis
+        p_vector = np.array([1, 2, 3])
+    else:
+        raise ValueError('Invalid problem number')
+
+    # forcing function
+    ffunc = ffunc_beam
+
+    # forcing function arguments
+    ffunc_args = np.array([Px, 1., load_case])
 
     figure, axes = plt.subplots(p_vector.size, n.size, sharex=True, sharey=True)
-    max_deflection_fem = np.zeros([2, n.size])
-    max_deflection_thoeretical = np.zeros([2, n.size])
-    nodes = np.zeros([2, int(n.size)])
+    max_deflection_fem = np.zeros([p_vector.size, n.size])
+    max_deflection_thoeretical = np.zeros([p_vector.size, n.size])
+    nodes = np.zeros([p_vector.size, int(n.size)])
 
     x_exact = np.linspace(0, l, 50)
     u_exact = np.zeros((Ndof, x_exact.size))
     for idof in np.arange(0, Ndof):
         # u_exact[idof, :] = ((ffunc(x_exact, ffunc_args))[idof] * x_exact ** 2) * (x_exact ** 2 + 6. * l - 4. * l * x_exact) / (24. * E * Ix)
         # u_exact[idof, :] = ((ffunc(x_exact, ffunc_args))[idof]*x_exact**2/(E*A))
-        u_exact[idof, :] = ((ffunc(x_exact, ffunc_args, Ndof))[idof]*(1.-(x_exact-1.)**2)/(2.*E*A))
+        if coding_3_problem == 2:
+            u_exact[idof, :] = ((ffunc(x_exact, ffunc_args, Ndof))[idof]*(1.-(x_exact-1.)**2)/(2.*E*A))
+        elif coding_3_problem == 3:
+            u_exact[idof, :] = ((ffunc(x_exact, ffunc_args, Ndof))[idof] * x_exact ** 2) * (
+                                x_exact ** 2 + 6. * l**2 - 4. * l * x_exact) / (24. * E * Ix)
+        elif coding_3_problem == 4:
+            u_exact[idof, :] = ((ffunc(x_exact, ffunc_args))[idof] * x_exact/(360.*l*E*Ix))*(7.*l**4 - 10.*(l**2)*(x_exact**2) + 3.*x_exact**4)
+
 
     for p, i in zip(p_vector, np.arange(0, p_vector.size)):
 
@@ -1000,7 +1056,7 @@ def beam_solution_1():
             x = np.linspace(0, 1, 4 * Nell + 1)
 
             # ID array
-            ID = get_id(case, Nell, p)
+            ID = get_id(support_case, Nell, p, Ndof)
             # if Nell == 10:
             #
             #     print ID
@@ -1008,7 +1064,7 @@ def beam_solution_1():
             nodes[i, j] = Nell+p
 
             tic = time.time()
-            K, F, d, sol, da = fem_solver(Nell, he, Nint, p, ID, E, Ix, Iy, J, A, nu, ffunc=ffunc, ffunc_args=ffunc_args, case=case)
+            K, F, d, sol, da = fem_solver(Nell, he, Nint, p, ID, E, Ix, Iy, J, A, nu, ffunc=ffunc, ffunc_args=ffunc_args, case=support_case)
 
             toc = time.time()
             # print he, Nell, K
