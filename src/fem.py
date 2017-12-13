@@ -41,15 +41,16 @@ def ffunc_cubic(x, a=np.array([0., 0., 0., 10.])):
 
     return f
 
-def ffunc_beam(x, a=np.array([10, 0.005])):
+def ffunc_beam(x, a=np.array([10, 0.005]), Ndof=6):
     """
     Forcing function defined for coding 2 part 2
     :param x: location in global reference frame
     :param a: [a, h]
     :return: forcing function value
     """
-    Ndof = 6
-    f = a[0]*a[1]**3
+
+    # f = a[0]*a[1]**3
+    f = a[0]
     F = np.zeros(Ndof)
     F[2] = f
     return F
@@ -67,9 +68,9 @@ def moment_of_inertia_rod(d):
     Ix = (np.pi*d**4)/64.
     Iy = (np.pi*d**4)/64.
     Ixy = 0.
-    J = (np.pi*d**4)/32.
+    # J = (np.pi*d**4)/32.
 
-    return Ix, Iy, Ixy, J
+    return Ix, Iy, Ixy
 
 def fem_solver(Nell, he, Nint, p, ID, E, I1, I2, J, A, nu, ffunc=ffunc_quadratic, ffunc_args=np.array([0., 0., 1.]), case=2, Ndof=6.):
 
@@ -120,16 +121,16 @@ def fem_solver(Nell, he, Nint, p, ID, E, I1, I2, J, A, nu, ffunc=ffunc_quadratic
             Ndx, Ndxdx, dxdxi, x = global_bezier_extraction(ga[e-1:e+p],N, Nedxi, Nedxidxi)
 
             # get f for each dof at this location
-            f = ffunc(x, ffunc_args)
+            f = ffunc(x, ffunc_args, Ndof)
 
             # get base k matrix for element e
             for a in np.arange(0, p+1):
 
-                Ba = get_B(N[a], Nedxi[a])
+                Ba = get_B(N[a], Ndx[a])
 
                 for b in np.arange(0, p+1):
 
-                    Bb = get_B(N[b], Nedxi[b])
+                    Bb = get_B(N[b], Ndx[b])
 
                     BDB = np.matmul(np.transpose(Ba), np.matmul(D, Bb))
 
@@ -146,33 +147,34 @@ def fem_solver(Nell, he, Nint, p, ID, E, I1, I2, J, A, nu, ffunc=ffunc_quadratic
                 for idof in np.arange(0, Ndof):
                     fe[a*Ndof+idof] += N[a] * f[idof] * dxdxi * w[i]
 
-            # assemble global stifness matrix and force vector
-            for a in np.arange(0, p + 1):
-                for idof in np.arange(0, Ndof):
-                    if LM[a*Ndof+idof, e - 1] == 0:
-                        continue
 
-                    # global force vector assembly
-                    F[int(LM[a*Ndof+idof, e - 1] - 1)] += fe[a*Ndof+idof]
+        # assemble global stifness matrix and force vector
+        for a in np.arange(0, p + 1):
+            for idof in np.arange(0, Ndof):
+                if LM[a*Ndof+idof, e - 1] == 0:
+                    continue
 
-                    for b in np.arange(0, p + 1):
-                        for jdof in np.arange(0, Ndof):
-                            if LM[b*Ndof+jdof, e - 1] == 0:
-                                continue
+                # global force vector assembly
+                F[int(LM[a*Ndof+idof, e - 1] - 1)] += fe[a*Ndof+idof]
 
-                            # global stiffness matrix assembly
-                            K[int(LM[a*Ndof+idof, e - 1] - 1), int(LM[b*Ndof+jdof, e - 1] - 1)] += ke[a*Ndof+idof, b*Ndof+jdof]
+                for b in np.arange(0, p + 1):
+                    for jdof in np.arange(0, Ndof):
+                        if LM[b*Ndof+jdof, e - 1] == 0:
+                            continue
+
+                        # global stiffness matrix assembly
+                        K[int(LM[a*Ndof+idof, e - 1] - 1), int(LM[b*Ndof+jdof, e - 1] - 1)] += ke[a*Ndof+idof, b*Ndof+jdof]
 
     # solve for d
     d = solve_for_d(K, F)
 
     da = np.copy(d)
-    if case == 0:
-        da = np.append(np.zeros(Ndof), d)
-    elif case == 2:
-        da = np.append(np.array([0., 0.]), d)
-    elif case == 1:
-        da = np.append(d, np.array([0., 0.]))
+    # if case == 0:
+    #     da = np.append(np.zeros(Ndof), d)
+    # elif case == 2:
+    #     da = np.append(np.array([0., 0.]), d)
+    # elif case == 1:
+    #     da = np.append(d, np.array([0., 0.]))
 
     # determine the number of nodes
     Nnodes = Nell + p
@@ -190,10 +192,7 @@ def fem_solver(Nell, he, Nint, p, ID, E, I1, I2, J, A, nu, ffunc=ffunc_quadratic
                 continue
             else:
                 solution[inode*Ndof+idof] = da[int(ID[idof, inode])-1]
-#TODO which part of solution is being skipped and why?
-    # print 'solution: ', solution
-    print da
-    print solution
+
     return K, F, d, solution, da
 
 def get_D(A, E, mu, A1s, A2s, I1, I2, J):
@@ -220,14 +219,14 @@ def get_D(A, E, mu, A1s, A2s, I1, I2, J):
 
     return D
 
-def get_B(Na, dNadxi):
+def get_B(Na, dNadx):
 
-    Ba = np.array([[0.,     0.,     dNadxi, 0.,     0.,     0.    ],
-                   [dNadxi, 0.,     0.,     0.,     -Na,    0.    ],
-                   [0.,     dNadxi, 0.,     Na,     0.,     0.    ],
-                   [0.,     0.,     0.,     dNadxi, 0.,     0.    ],
-                   [0.,     0.,     0.,     0.,     dNadxi, 0.    ],
-                   [0.,     0.,     0.,     0.,     0.,     dNadxi]])
+    Ba = np.array([[0.,     0.,     dNadx, 0.,     0.,     0.    ],
+                   [dNadx, 0.,     0.,     0.,     -Na,    0.    ],
+                   [0.,     dNadx, 0.,     Na,     0.,     0.    ],
+                   [0.,     0.,     0.,     dNadx, 0.,     0.    ],
+                   [0.,     0.,     0.,     0.,     dNadx, 0.    ],
+                   [0.,     0.,     0.,     0.,     0.,     dNadx]])
 
     return Ba
 
@@ -350,7 +349,7 @@ def get_u_of_x_approx(sol, he, Nell, Nint, p, ID, Nsamples, Ndof=6):
             u_temp = np.zeros(Ndof)
             for a in np.arange(0, p + 1):
                 for idof in np.arange(0, Ndof):
-                    idx = int(IEN[a*Ndof+idof, e]) - 1
+                    # idx = int(IEN[a*Ndof+idof, e]) - 1
                     u_temp[idof] += N[a] * sol[int(LM[a*Ndof+idof, e]+Ndof) - 1]
                     # if np.any(u_temp) > 0:
                     #     print "success"
@@ -455,8 +454,8 @@ def local_bernstein(xi, p):
         raise ValueError("the value of xi is $f, but must be in the range [-1, 1]" %xi)
 
     # check if p is in the acceptable range for this code
-    if p > 3 or p < 2:
-        raise ValueError("the value of p must be 2 or 3, but %i was given" % p)
+    # if p > 3 or p < 2:
+    #     raise ValueError("the value of p must be 2 or 3, but %i was given" % p)
 
     # initialize Bernstein polynomial vectors
     B = np.zeros(p+1)
@@ -539,7 +538,7 @@ def local_bernstein(xi, p):
 def local_bezier_extraction(p, e, Nell, B, Bdxi, Bdxidxi):
     # if Nell = 1 C = Identity
     # determine the appropriate Bezier extraction matrix
-    if Nell == 1:
+    if p == 1 or Nell == 1:
 
         C = np.identity(p+1)
 
@@ -947,22 +946,28 @@ def beam_solution_1():
     nu = 0.3 # poisson's ratio for steel
     b = 0.005
     h = 0.005
+    d = 0.02
     A = b*h
     l = 1.
     Nint = 3
     Ndof = 6
+    Px = 10.
 
     # number of elements
-    n = np.array([4, 10, 100])
+    n = np.array([1, 10])
+
+    # order of basis
+    p_vector = np.array([1])
 
     # forcing function
     ffunc = ffunc_beam
 
     # forcing function arguments
-    ffunc_args = np.array([10., 1.])
+    ffunc_args = np.array([Px, 1.])
 
     # get the moment of inertia of the cross section
-    Ix, Iy, _ = moment_of_inertia_rectangle(b, h)
+    # Ix, Iy, _ = moment_of_inertia_rectangle(b, h)
+    Ix, Iy, _ = moment_of_inertia_rod(d)
 
     J = Ix + Iy # polar moment of inertia
 
@@ -972,7 +977,7 @@ def beam_solution_1():
     # set case to use
     case = 0
 
-    figure, axes = plt.subplots(2, 3, sharex=True, sharey=True)
+    figure, axes = plt.subplots(p_vector.size, n.size, sharex=True, sharey=True)
     max_deflection_fem = np.zeros([2, n.size])
     max_deflection_thoeretical = np.zeros([2, n.size])
     nodes = np.zeros([2, int(n.size)])
@@ -980,10 +985,11 @@ def beam_solution_1():
     x_exact = np.linspace(0, l, 50)
     u_exact = np.zeros((Ndof, x_exact.size))
     for idof in np.arange(0, Ndof):
-        u_exact[idof, :] = ((ffunc(x_exact, ffunc_args))[idof] * x_exact ** 2) * (x_exact ** 2 + 6. * l - 4. * l * x_exact) / (24. * E * Ix)
+        # u_exact[idof, :] = ((ffunc(x_exact, ffunc_args))[idof] * x_exact ** 2) * (x_exact ** 2 + 6. * l - 4. * l * x_exact) / (24. * E * Ix)
+        # u_exact[idof, :] = ((ffunc(x_exact, ffunc_args))[idof]*x_exact**2/(E*A))
+        u_exact[idof, :] = ((ffunc(x_exact, ffunc_args, Ndof))[idof]*(1.-(x_exact-1.)**2)/(2.*E*A))
 
-
-    for p, i in zip(np.array([2, 3]), np.arange(0, 2)):
+    for p, i in zip(p_vector, np.arange(0, p_vector.size)):
 
         for Nell, j in zip(n, np.arange(0, n.size)):
 
@@ -1005,20 +1011,31 @@ def beam_solution_1():
             K, F, d, sol, da = fem_solver(Nell, he, Nint, p, ID, E, Ix, Iy, J, A, nu, ffunc=ffunc, ffunc_args=ffunc_args, case=case)
 
             toc = time.time()
-            print he, Nell, K
+            # print he, Nell, K
             print "Time to run fem solver: %.3f (s)" % (toc - tic)
             Nsamples = int(100./Nell)
             u, x = get_u_of_x_approx(sol, he, Nell, Nint, p, ID, Nsamples)
-            print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384., 0])
+            # print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384., 0])
             print "Time to solve for u(x): %.3f (s)" % (toc - tic)
 
 
             print "Finished"
 
-            print d, u, x[::-1]
+            # print d, u, x[::-1]
             # if Nell > 1:
-            axes[i,j].plot(x_exact[:-1], u_exact[2, :-1], '-r', linewidth=1.5)
-            axes[i,j].plot(x[:-1], u[2, :-1], '--b')
+
+            if p_vector.size == 1 and n.size == 1:
+                axes.plot(x_exact[:-1], u_exact[2, :-1], '-r', linewidth=1.5)
+                axes.plot(x[:-1], u[2, :-1], '--b')
+            elif p_vector.size == 1:
+                axes[j].plot(x_exact[:-1], u_exact[2, :-1], '-r', linewidth=1.5)
+                axes[j].plot(x[:-1], u[2, :-1], '--b')
+            elif n.size == 1:
+                axes[i].plot(x_exact[:-1], u_exact[2, :-1], '-r', linewidth=1.5)
+                axes[i].plot(x[:-1], u[2, :-1], '--b')
+            else:
+                axes[i,j].plot(x_exact[:-1], u_exact[2, :-1], '-r', linewidth=1.5)
+                axes[i,j].plot(x[:-1], u[2, :-1], '--b')
 
             max_deflection_fem[i,j] = max(u[0, :])
             max_deflection_thoeretical[i, j] = max(u_exact[2])
@@ -1026,14 +1043,30 @@ def beam_solution_1():
 
 
 
-    axes[0,0].set_title('$N_{ell}=1$')
-    axes[0,1].set_title('$N_{ell}=10$')
-    axes[0,2].set_title('$N_{ell}=100$')
-    axes[0,0].set_ylabel('Deflection, $p=2$')
-    axes[1,0].set_ylabel('Deflection, $p=3$')
-    axes[1,0].set_xlabel('X Position')
-    axes[1,1].set_xlabel('X Position')
-    axes[1,2].set_xlabel('X Position')
+    for i in np.arange(0, p_vector.size):
+        if p_vector.size == 1 and n.size == 1:
+            axes.set_ylabel('Deflection, $p=%i$' % (p_vector[i]))
+        elif p_vector.size == 1:
+            axes[0].set_ylabel('Deflection, $p=%i$' % (p_vector[i]))
+        elif n.size == 1:
+            axes[i].set_ylabel('Deflection, $p=%i$' % (p_vector[i]))
+        else:
+            axes[i, 0].set_ylabel('Deflection, $p=%i$' % (p_vector[i]))
+
+    for j in np.arange(0, n.size):
+        if p_vector.size == 1 and n.size == 1:
+            axes.set_xlabel('X Position')
+            axes.set_title('$N_{ell}=%i$' % (n[j]))
+        elif p_vector.size == 1:
+            axes[j].set_xlabel('X Position')
+            axes[j].set_title('$N_{ell}=%i$' % (n[j]))
+        elif n.size == 1:
+            axes[-1].set_xlabel('X Position')
+            axes[0].set_title('$N_{ell}=%i$' % (n[j]))
+        else:
+            axes[-1, j].set_xlabel('X Position')
+            axes[0, j].set_title('$N_{ell}=%i$' % (n[j]))
+
     plt.tight_layout()
     # axes[0,0].legend('Exact', 'FEM')
     plt.savefig('beam1_deflection.pdf')
