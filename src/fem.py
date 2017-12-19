@@ -179,32 +179,26 @@ def fem_solver(Nell, he, Nint, p, ID, E, I1, I2, J, A, nu, ffunc=ffunc_quadratic
     # solve for d
     d = solve_for_d(K, F)
 
-    da = np.copy(d)
-    # if case == 0:
-    #     da = np.append(np.zeros(Ndof), d)
-    # elif case == 2:
-    #     da = np.append(np.array([0., 0.]), d)
-    # elif case == 1:
-    #     da = np.append(d, np.array([0., 0.]))
-
     # determine the number of nodes
     Nnodes = Nell + p
 
-    # print d, Nnodes
-    # quit()
+    # get full solution
+    solution = get_solution(d, p, Nell, Ndof, Nnodes, LM, ID)
 
-    # initialize solution array
-    solution = np.zeros(Nnodes*Ndof)
+    return K, F, d, solution
 
-    # populate solution array
-    for idof in np.arange(0, Ndof):
-        for inode in np.arange(0, Nnodes):
+def get_solution(d, p, Nell, Ndof, Nnodes, LM, ID):
+
+    sol = np.zeros(Ndof*Nnodes)
+
+    for inode in np.arange(0, Nnodes):
+        for idof in np.arange(0, Ndof):
             if ID[idof, inode] == 0:
                 continue
-            else:
-                solution[inode*Ndof+idof] = da[int(ID[idof, inode])-1]
+            sol[inode*Ndof+idof] = d[int(ID[idof, inode]-1)]
 
-    return K, F, d, solution, da
+    return sol
+
 
 def get_D(A, E, mu, A1s, A2s, I1, I2, J):
     """
@@ -361,13 +355,21 @@ def get_u_of_x_approx(sol, he, Nell, Nint, p, ID, Nsamples, Ndof=6):
             for a in np.arange(0, p + 1):
                 for idof in np.arange(0, Ndof):
                     # idx = int(IEN[a*Ndof+idof, e]) - 1
+                    #TODO correct the indexing
+                    # if LM[a * Ndof + idof, e] == 0:
+                    #     continue
+                    # u_temp[idof] += N[a] * sol[int(LM[a*Ndof+idof, e]+Ndof) - 1]
                     u_temp[idof] += N[a] * sol[int(LM[a*Ndof+idof, e]) - 1]
+                    # u_temp[idof] += N[a] * sol[int(IEN[a*Ndof+idof, e]) - 1]
+                    # u_temp[idof] += N[a] * sol[e*Ndof + idof]
                     # if np.any(u_temp) > 0:
                     #     print "success"
                     #     quit()
             # u[int(e * Nint + i)]
             u[:, count] = u_temp
+
             count += 1
+
     return u, x_sample
 
 def get_u_of_x_exact(x, q, ffunc_num):
@@ -435,7 +437,6 @@ def get_id(case, Nell, p, Ndof=6):
         # print 'here in ', case
         # print np.arange(1,Nell+p)
         ID[2:] = np.arange(1,Nell+p-1)
-
 
     # coding two part one
     elif case == 2:
@@ -985,7 +986,7 @@ def beam_solution_1():
     # quit()
 
     # set cases to use
-    coding_3_problem = 4
+    coding_3_problem = 2
 
     # support_case = 0        # 0: cantilever fixed on the left
     #                         # 1: cantilever fixed on the right
@@ -1003,6 +1004,7 @@ def beam_solution_1():
         n = np.array([1, 10])
         # order of basis
         p_vector = np.array([1])
+        plotdofs = np.array([2])
     elif coding_3_problem == 3:
         support_case = 0
         load_case = 1
@@ -1010,6 +1012,7 @@ def beam_solution_1():
         n = np.array([10, 100])
         # order of basis
         p_vector = np.array([1, 2, 3])
+        plotdofs = np.array([0, 4])
     elif coding_3_problem == 4:
         support_case = 3
         load_case = 2
@@ -1017,6 +1020,7 @@ def beam_solution_1():
         n = np.array([10, 100])
         # order of basis
         p_vector = np.array([1, 2, 3])
+        plotdofs = np.array([0, 4])
     else:
         raise ValueError('Invalid problem number')
 
@@ -1037,12 +1041,12 @@ def beam_solution_1():
         # u_exact[idof, :] = ((ffunc(x_exact, ffunc_args))[idof] * x_exact ** 2) * (x_exact ** 2 + 6. * l - 4. * l * x_exact) / (24. * E * Ix)
         # u_exact[idof, :] = ((ffunc(x_exact, ffunc_args))[idof]*x_exact**2/(E*A))
         if coding_3_problem == 2:
-            u_exact[idof, :] = ((ffunc(x_exact, ffunc_args, Ndof))[idof]*(1.-(x_exact-1.)**2)/(2.*E*A))
+            u_exact[idof, :] = ((ffunc(x_exact/l, ffunc_args, Ndof))[idof]*(1.-(x_exact-1.)**2)/(2.*E*A))
         elif coding_3_problem == 3:
-            u_exact[idof, :] = ((ffunc(x_exact, ffunc_args, Ndof))[idof] * x_exact ** 2) * (
+            u_exact[idof, :] = ((ffunc(x_exact/l, ffunc_args, Ndof))[idof] * x_exact ** 2) * (
                                 x_exact ** 2 + 6. * l**2 - 4. * l * x_exact) / (24. * E * Ix)
         elif coding_3_problem == 4:
-            u_exact[idof, :] = ((ffunc(x_exact, ffunc_args))[idof] * x_exact/(360.*l*E*Ix))*(7.*l**4 - 10.*(l**2)*(x_exact**2) + 3.*x_exact**4)
+            u_exact[idof, :] = ((ffunc(x_exact/l, ffunc_args, Ndof))[idof] * x_exact/(360.*l*E*Ix))*(7.*l**4 - 10.*(l**2)*(x_exact**2) + 3.*x_exact**4)
 
 
     for p, i in zip(p_vector, np.arange(0, p_vector.size)):
@@ -1064,7 +1068,7 @@ def beam_solution_1():
             nodes[i, j] = Nell+p
 
             tic = time.time()
-            K, F, d, sol, da = fem_solver(Nell, he, Nint, p, ID, E, Ix, Iy, J, A, nu, ffunc=ffunc, ffunc_args=ffunc_args, case=support_case)
+            K, F, d, sol = fem_solver(Nell, he, Nint, p, ID, E, Ix, Iy, J, A, nu, ffunc=ffunc, ffunc_args=ffunc_args, case=support_case, Ndof=Ndof)
 
             toc = time.time()
             # print he, Nell, K
@@ -1080,24 +1084,23 @@ def beam_solution_1():
             # print d, u, x[::-1]
             # if Nell > 1:
 
-            if p_vector.size == 1 and n.size == 1:
-                axes.plot(x_exact[:-1], u_exact[2, :-1], '-r', linewidth=1.5)
-                axes.plot(x[:-1], u[2, :-1], '--b')
-            elif p_vector.size == 1:
-                axes[j].plot(x_exact[:-1], u_exact[2, :-1], '-r', linewidth=1.5)
-                axes[j].plot(x[:-1], u[2, :-1], '--b')
-            elif n.size == 1:
-                axes[i].plot(x_exact[:-1], u_exact[2, :-1], '-r', linewidth=1.5)
-                axes[i].plot(x[:-1], u[2, :-1], '--b')
-            else:
-                axes[i,j].plot(x_exact[:-1], u_exact[2, :-1], '-r', linewidth=1.5)
-                axes[i,j].plot(x[:-1], u[2, :-1], '--b')
+            for plotdef in plotdofs:
+                if p_vector.size == 1 and n.size == 1:
+                    axes.plot(x_exact[:-1], u_exact[plotdef, :-1], '-r', linewidth=1.5)
+                    axes.plot(x[:-1], u[plotdef, :-1], '--b')
+                elif p_vector.size == 1:
+                    axes[j].plot(x_exact[:-1], u_exact[plotdef, :-1], '-r', linewidth=1.5)
+                    axes[j].plot(x[:-1], u[plotdef, :-1], '--b')
+                elif n.size == 1:
+                    axes[i].plot(x_exact[:-1], u_exact[plotdef, :-1], '-r', linewidth=1.5)
+                    axes[i].plot(x[:-1], u[plotdef, :-1], '--b')
+                else:
+                    axes[i,j].plot(x_exact[:-1], u_exact[plotdef, :-1], '-r', linewidth=1.5)
+                    axes[i,j].plot(x[:-1], u[plotdef, :-1], '--b')
 
             max_deflection_fem[i,j] = max(u[0, :])
             max_deflection_thoeretical[i, j] = max(u_exact[2])
             # max_deflection_thoeretical[i, j] = max(u_exact)
-
-
 
     for i in np.arange(0, p_vector.size):
         if p_vector.size == 1 and n.size == 1:
