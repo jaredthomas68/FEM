@@ -199,7 +199,6 @@ def get_solution(d, p, Nell, Ndof, Nnodes, LM, ID):
 
     return sol
 
-
 def get_D(A, E, mu, A1s, A2s, I1, I2, J):
     """
     Defines the relationship matrix between stress and strain
@@ -845,136 +844,6 @@ def plot_displacements(u, x, he, Nell, q=1, ffunc=ffunc_constant, ffunc_args=np.
     plt.close()
     return
 
-def run_constant(Nell, Nint, p, E=1, I=1):
-
-    ffunc = ffunc_constant
-    ffunc_args = np.array([1.])
-    he = np.ones(Nell) / Nell
-    x = np.linspace(0, 1, 4 * Nell + 1)
-
-    ID = get_id(2, Nell, p)
-    Xe = node_locations_x(Nell, he)
-
-    tic = time.time()
-    K, F, d = fem_solver(Nell, he, Nint, p, ID, E, I, ffunc, ffunc_args)
-    toc = time.time()
-    print he, Nell, K
-    print "Time to run fem solver: %.3f (s)" % (toc - tic)
-
-    tic = time.time()
-    u = solve_for_displacements(d, Nell, he, g=0)
-    toc = time.time()
-    print u
-    print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384., 0])
-    print "Time to solve for u(x): %.3f (s)" % (toc - tic)
-
-    print "Finished"
-
-    # error = quadrature(Xe, he, u, ffunc_args=ffunc_args)
-    # print error
-    plot_displacements(u, x, he, Nell, ffunc=ffunc, ffunc_args=ffunc_args)
-
-def run_linear(Nell, Nint, p, E=1, I=1):
-
-    ffunc = ffunc_linear
-    ffunc_args = np.array([0, 1])
-    he = np.ones(Nell) / Nell
-    x = np.linspace(0, 1, 4 * Nell + 1)
-
-    ID = get_id(2, Nell, p)
-    Xe = node_locations_x(Nell, he)
-
-    tic = time.time()
-    K, F, d = fem_solver(Nell, he, Nint, p, ID, E, I, ffunc, ffunc_args)
-    toc = time.time()
-    print he, Nell, K
-    print "Time to run fem solver: %.3f (s)" % (toc - tic)
-
-    tic = time.time()
-    u = solve_for_displacements(d, Nell, he, g=0)
-    toc = time.time()
-    print u
-    print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384., 0])
-    print "Time to solve for u(x): %.3f (s)" % (toc - tic)
-
-    print "Finished"
-
-    # error = quadrature(Xe, he, u, ffunc_args=ffunc_args)
-    # print error
-    plot_displacements(u, x, he, Nell, ffunc=ffunc, ffunc_args=ffunc_args)
-
-def run_quadratic(Nell, Nint, p, E=1, I=1, Nsamples=3):
-
-    ffunc = ffunc_quadratic
-    ffunc_args = np.array([0, 0, 1])
-    he = np.ones(Nell) / Nell
-    x = np.linspace(0, 1, 4 * Nell + 1)
-
-    ID = get_id(2, Nell, p)
-    Xe = node_locations_x(Nell, he)
-
-    tic = time.time()
-    K, F, d, sol = fem_solver(Nell, he, Nint, p, ID, E, I, ffunc)
-    toc = time.time()
-    print he, Nell, K
-    print "Time to run fem solver: %.3f (s)" % (toc - tic)
-
-    tic = time.time()
-    u = solve_for_displacements(d, Nell, he, g=0)
-    toc = time.time()
-    print u
-    print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384., 0])
-    print "Time to solve for u(x): %.3f (s)" % (toc - tic)
-
-    print "Finished"
-
-    # error = quadrature(Xe, he, u, ffunc_args=ffunc_args)
-    # print error
-    plot_displacements(u, x, he, Nell, ffunc=ffunc, ffunc_args=ffunc_args)
-    plot_results(sol, p, Nell, Nsamples, ID)
-
-    return sol
-
-def plot_results(solution, p, Nell, Nsamples, ID, Nint=3):
-    print "here"
-    # create sample vector
-    xi_sample = np.linspace(-1., 1., Nsamples)
-
-    # get IEN array
-    IEN = ien_array(Nell, p)
-
-    # get quadrature points and weights in local coordinants
-    xi_sample, w = quadrature_rule(Nint)
-
-    Nsamples = Nint
-    # initialize displacement array
-    u = np.zeros(Nell*Nsamples)
-
-    # loop over elements
-    for e in np.arange(0, Nell):
-        # loop over samples
-        # for i in np.arange(0, Nsamples):
-        for i in np.arange(0, Nsamples):
-            B, Bdxi, Bdxidxi = local_bernstein(xi_sample[i], p)
-            N, Nedxi, Nedxidxi = local_bezier_extraction(p, e+1, Nell, B, Bdxi, Bdxidxi)
-            # print N, p, IEN, solution
-            # print e, i
-            for a in np.arange(0, p+1):
-
-                u[int(e*Nsamples + i)] += N[a]*solution[int(IEN[a, e])-1]
-
-    # initialize location array
-    x = np.linspace(0., 1., Nell*Nsamples)
-    x_ex = np.linspace(0., 1., 500)
-    # print x
-    # print u
-    q = 1
-    u_ex = get_u_of_x_exact(x_ex, q, 2)
-
-    plt.plot(x_ex, u_ex)
-    plt.plot(x, u, '--')
-    plt.show()
-
 def beam_solution_1():
 
     # problem parameters
@@ -990,8 +859,8 @@ def beam_solution_1():
     Px = 10.
 
     # get the moment of inertia of the cross section
-    # Ix, Iy, _ = moment_of_inertia_rectangle(b, h)
-    Ix, Iy, _ = moment_of_inertia_rod(d)
+    Ix, Iy, _ = moment_of_inertia_rectangle(b, h)
+    # Ix, Iy, _ = moment_of_inertia_rod(d)
 
     J = Ix + Iy # polar moment of inertia
 
@@ -999,7 +868,7 @@ def beam_solution_1():
     # quit()
 
     # set cases to use
-    coding_3_problem = 2
+    coding_3_problem = 3
 
     # support_case = 0        # 0: cantilever fixed on the left
     #                         # 1: cantilever fixed on the right
@@ -1018,6 +887,7 @@ def beam_solution_1():
         # order of basis
         p_vector = np.array([1])
         plotdofs = np.array([2])
+        leg_loc = 4
     elif coding_3_problem == 3:
         support_case = 0
         load_case = 1
@@ -1025,7 +895,8 @@ def beam_solution_1():
         n = np.array([10, 100])
         # order of basis
         p_vector = np.array([1, 2, 3])
-        plotdofs = np.array([0])
+        plotdofs = np.array([0, 4])
+        leg_loc = 3
     elif coding_3_problem == 4:
         support_case = 3
         load_case = 2
@@ -1033,7 +904,8 @@ def beam_solution_1():
         n = np.array([10, 100])
         # order of basis
         p_vector = np.array([1, 2, 3])
-        plotdofs = np.array([0])
+        plotdofs = np.array([0, 4])
+        leg_loc = 9
     else:
         raise ValueError('Invalid problem number')
 
@@ -1043,123 +915,137 @@ def beam_solution_1():
     # forcing function arguments
     ffunc_args = np.array([Px, 1., load_case])
 
-    figure, axes = plt.subplots(p_vector.size, n.size, sharex=True, sharey=True)
-    max_deflection_fem = np.zeros([p_vector.size, n.size])
-    max_deflection_thoeretical = np.zeros([p_vector.size, n.size])
+
+    max_deflection_fem = np.zeros([p_vector.size, n.size, Ndof])
+    max_deflection_theoretical = np.zeros([p_vector.size, n.size, Ndof])
     nodes = np.zeros([p_vector.size, int(n.size)])
 
-    x_exact = np.linspace(0, l, 50)
+    num = 50
+    x_exact = np.linspace(0, l + l / num, num)
     u_exact = np.zeros((Ndof, x_exact.size))
-    for idof in np.arange(0, Ndof):
-        # u_exact[idof, :] = ((ffunc(x_exact, ffunc_args))[idof] * x_exact ** 2) * (x_exact ** 2 + 6. * l - 4. * l * x_exact) / (24. * E * Ix)
-        # u_exact[idof, :] = ((ffunc(x_exact, ffunc_args))[idof]*x_exact**2/(E*A))
-        if coding_3_problem == 2:
-            u_exact[idof, :] = ((ffunc(x_exact/l, ffunc_args, Ndof))[idof]*(1.-(x_exact-1.)**2)/(2.*E*A))
-        elif coding_3_problem == 3:
-            if idof == 0:
-                u_exact[idof, :] = ((ffunc(x_exact/l, ffunc_args, Ndof))[idof] * x_exact ** 2) * (
-                                    x_exact ** 2 + 6. * l**2 - 4. * l * x_exact) / (24. * E * Ix)
-        elif coding_3_problem == 4:
-            if idof == 0:
-                u_exact[idof, :] = (-Px * x_exact/(360.*l*E*Ix))*(7.*l**4 - 10.*(l**2)*(x_exact**2) + 3.*x_exact**4)
+    if coding_3_problem == 2:
+        u_exact[2, :] = (-Px * (1. - (x_exact - 1.) ** 2) / (2. * E * A))
+    elif coding_3_problem == 3:
+        u_exact[0, :] = (-Px * x_exact ** 2) * (
+            x_exact ** 2 + 6. * l ** 2 - 4. * l * x_exact) / (24. * E * Ix)
+        u_exact[4, :] = (-Px * x_exact) * (
+            3. * l ** 2 - 3. * l * x_exact + x_exact ** 2) / (6. * E * Ix)
+    elif coding_3_problem == 4:
+        u_exact[0, :] = (-Px * x_exact / (360. * l * E * Ix)) * (
+        7. * l ** 4 - 10. * (l ** 2) * (x_exact ** 2) + 3. * x_exact ** 4)
+        u_exact[4, :] = (-Px / (360. * l * E * Ix)) * (
+        7. * l ** 4 - 30. * (l ** 2) * (x_exact ** 2) + 15. * x_exact ** 4)
 
-    for p, i in zip(p_vector, np.arange(0, p_vector.size)):
+    for plotdof in plotdofs:
+        figure, axes = plt.subplots(p_vector.size, n.size, sharex=True, sharey=True)
 
-        for Nell, j in zip(n, np.arange(0, n.size)):
+        for p, i in zip(p_vector, np.arange(0, p_vector.size)):
 
-            # vector of element lengths
-            he = np.ones(Nell) / Nell
+            for Nell, j in zip(n, np.arange(0, n.size)):
 
-            # vector of element locations
-            x = np.linspace(0, 1, 4 * Nell + 1)
+                # vector of element lengths
+                he = np.ones(Nell) / Nell
 
-            # ID array
-            ID = get_id(support_case, Nell, p, Ndof)
-            # if Nell == 10:
-            #
-            #     print ID
-            #     quit()
-            nodes[i, j] = Nell+p
+                # vector of element locations
+                x = np.linspace(0, 1, 4 * Nell + 1)
 
-            tic = time.time()
-            K, F, d, sol = fem_solver(Nell, he, Nint, p, ID, E, Ix, Iy, J, A, nu, ffunc=ffunc, ffunc_args=ffunc_args, case=support_case, Ndof=Ndof)
+                # ID array
+                ID = get_id(support_case, Nell, p, Ndof)
+                # if Nell == 10:
+                #
+                #     print ID
+                #     quit()
+                nodes[i, j] = Nell+p
 
-            toc = time.time()
-            # print he, Nell, K
-            print "Time to run fem solver: %.3f (s)" % (toc - tic)
-            Nsamples = int(100./Nell)
-            u, x = get_u_of_x_approx(sol, he, Nell, Nint, p, ID, Nsamples)
-            # print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384., 0])
-            print "Time to solve for u(x): %.3f (s)" % (toc - tic)
+                tic = time.time()
+                K, F, d, sol = fem_solver(Nell, he, Nint, p, ID, E, Ix, Iy, J, A, nu, ffunc=ffunc, ffunc_args=ffunc_args, case=support_case, Ndof=Ndof)
+
+                toc = time.time()
+                # print he, Nell, K
+                print "Time to run fem solver: %.3f (s)" % (toc - tic)
+                Nsamples = int(100./Nell)
+                u, x = get_u_of_x_approx(sol, he, Nell, Nint, p, ID, Nsamples)
+                # print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384., 0])
+                print "Time to solve for u(x): %.3f (s)" % (toc - tic)
 
 
-            print "Finished"
+                print "Finished"
 
-            # print d, u, x[::-1]
-            # if Nell > 1:
+                # print d, u, x[::-1]
+                # if Nell > 1:
 
-            for plotdef in plotdofs:
+                max_deflection_fem[i, j, plotdof] = np.amax(np.abs(u[plotdof, :]))
+                max_deflection_theoretical[i, j, plotdof] = np.amax(np.abs(u_exact[plotdof, :]))
+
+                print ""
+                print "problem %i" % coding_3_problem
+                print "p=%i, Nell=%i, DOF=%i" %(p, Nell, plotdof)
+                print "Analytical max def: %s" %(max_deflection_theoretical[i, j, plotdof])
+                print "FEM max def: %s" %(max_deflection_fem[i, j, plotdof])
+                print ""
+
+
                 if p_vector.size == 1 and n.size == 1:
-                    axes.plot(x_exact[:-1], u_exact[plotdef, :-1], '-r', linewidth=1.5)
-                    axes.plot(x[:-1], u[plotdef, :-1], '--b')
+                    axes.plot(x_exact[:-1], u_exact[plotdof, :-1], '-r', linewidth=1.5, label='Analytic')
+                    axes.plot(x[:-1], u[plotdof, :-1], '--b', label='FEM')
                 elif p_vector.size == 1:
-                    axes[j].plot(x_exact[:-1], u_exact[plotdef, :-1], '-r', linewidth=1.5)
-                    axes[j].plot(x[:-1], u[plotdef, :-1], '--b')
+                    axes[j].plot(x_exact[:-1], u_exact[plotdof, :-1], '-r', linewidth=1.5, label='Analytic')
+                    axes[j].plot(x[:-1], u[plotdof, :-1], '--b', label='FEM')
                 elif n.size == 1:
-                    axes[i].plot(x_exact[:-1], u_exact[plotdef, :-1], '-r', linewidth=1.5)
-                    axes[i].plot(x[:-1], u[plotdef, :-1], '--b')
+                    axes[i].plot(x_exact[:-1], u_exact[plotdof, :-1], '-r', linewidth=1.5, label='Analytic')
+                    axes[i].plot(x[:-1], u[plotdof, :-1], '--b', label='FEM')
                 else:
-                    axes[i,j].plot(x_exact[:-1], u_exact[plotdef, :-1], '-r', linewidth=1.5)
-                    axes[i,j].plot(x[:-1], u[plotdef, :-1], '--b')
+                    axes[i,j].plot(x_exact[:-1], u_exact[plotdof, :-1], '-r', linewidth=1.5, label='Analytic')
+                    axes[i,j].plot(x[:-1], u[plotdof, :-1], '--b', label='FEM')
 
-            max_deflection_fem[i,j] = max(u[0, :])
-            max_deflection_thoeretical[i, j] = max(u_exact[2])
-            # max_deflection_thoeretical[i, j] = max(u_exact)
+        for i in np.arange(0, p_vector.size):
+            if p_vector.size == 1 and n.size == 1:
+                axes.set_ylabel('Deflection, $p=%i$' % (p_vector[i]))
+                axes.legend(loc=leg_loc, frameon=False)
+            elif p_vector.size == 1:
+                axes[0].set_ylabel('Deflection, $p=%i$' % (p_vector[i]))
+                axes[0].legend(loc=leg_loc, frameon=False)
+            elif n.size == 1:
+                axes[i].set_ylabel('Deflection, $p=%i$' % (p_vector[i]))
+                axes[i].legend(loc=leg_loc, frameon=False)
+            else:
+                axes[i, 0].set_ylabel('Deflection, $p=%i$' % (p_vector[i]))
+                axes[0, -1].legend(loc=leg_loc, frameon=False)
 
-    for i in np.arange(0, p_vector.size):
-        if p_vector.size == 1 and n.size == 1:
-            axes.set_ylabel('Deflection, $p=%i$' % (p_vector[i]))
-        elif p_vector.size == 1:
-            axes[0].set_ylabel('Deflection, $p=%i$' % (p_vector[i]))
-        elif n.size == 1:
-            axes[i].set_ylabel('Deflection, $p=%i$' % (p_vector[i]))
-        else:
-            axes[i, 0].set_ylabel('Deflection, $p=%i$' % (p_vector[i]))
+        for j in np.arange(0, n.size):
+            if p_vector.size == 1 and n.size == 1:
+                axes.set_xlabel('X Position')
+                axes.set_title('$N_{ell}=%i$' % (n[j]))
+            elif p_vector.size == 1:
+                axes[j].set_xlabel('X Position')
+                axes[j].set_title('$N_{ell}=%i$' % (n[j]))
+            elif n.size == 1:
+                axes[-1].set_xlabel('X Position')
+                axes[0].set_title('$N_{ell}=%i$' % (n[j]))
+            else:
+                axes[-1, j].set_xlabel('X Position')
+                axes[0, j].set_title('$N_{ell}=%i$' % (n[j]))
 
-    for j in np.arange(0, n.size):
-        if p_vector.size == 1 and n.size == 1:
-            axes.set_xlabel('X Position')
-            axes.set_title('$N_{ell}=%i$' % (n[j]))
-        elif p_vector.size == 1:
-            axes[j].set_xlabel('X Position')
-            axes[j].set_title('$N_{ell}=%i$' % (n[j]))
-        elif n.size == 1:
-            axes[-1].set_xlabel('X Position')
-            axes[0].set_title('$N_{ell}=%i$' % (n[j]))
-        else:
-            axes[-1, j].set_xlabel('X Position')
-            axes[0, j].set_title('$N_{ell}=%i$' % (n[j]))
+        plt.tight_layout()
+        # axes[0,0].legend('Exact', 'FEM')
+        plt.savefig('beam1_deflection_prob%i_dof%i.pdf' % (coding_3_problem, plotdof))
+        plt.show()
 
-    plt.tight_layout()
-    # axes[0,0].legend('Exact', 'FEM')
-    plt.savefig('beam1_deflection.pdf')
-    plt.show()
-
-
-    fig = plt.figure()
-
-    plt.plot(nodes[0,:], max_deflection_thoeretical[0,:], 'r', label='theoretical')
-    plt.plot(nodes[0,:], max_deflection_fem[0,:],'--ob', label='fem, p=2')
-    # plt.plot(nodes[1,:], max_deflection_thoeretical[1,:], label='theoretical, p=3')
-    plt.plot(nodes[1,:], max_deflection_fem[1,:], '--og', label='fem, p=3')
-    plt.xlabel('Nodes')
-    plt.ylabel('Max Deflection')
-    # plt.ylim([0.0028, 0.0032])
-    plt.legend(loc = 0)
-
-    plt.tight_layout()
-    plt.savefig('max_deflection_vs_n.pdf', transparent=True)
-    plt.show()
+    # for plotdof in plotdofs:
+    #     fig = plt.figure()
+    #
+    #     plt.plot(nodes[0,:], max_deflection_thoeretical[plotdof,:], 'r', label='theoretical')
+    #     plt.plot(nodes[0,:], max_deflection_fem[plotdof,:],'--ob', label='fem, p=2')
+    #     # plt.plot(nodes[1,:], max_deflection_thoeretical[1,:], label='theoretical, p=3')
+    #     plt.plot(nodes[1,:], max_deflection_fem[plotdof,:], '--og', label='fem, p=3')
+    #     plt.xlabel('Nodes')
+    #     plt.ylabel('Max Deflection')
+    #     # plt.ylim([0.0028, 0.0032])
+    #     plt.legend(loc = 0)
+    #
+    #     plt.tight_layout()
+    #     plt.savefig('max_deflection_vs_n.pdf', transparent=True)
+    #     plt.show()
 
 
 
