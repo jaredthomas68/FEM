@@ -308,6 +308,15 @@ def get_u_of_x_approx(sol, he, Nell, Nint, p, ID, Nsamples, Ndof=6):
     # get IEN array
     IEN = ien_array(Nell, p, Ndof)
     LM = lm_array(Nell, p, ID, IEN, Ndof)
+    LM_full = np.copy(LM)
+    [m, n] = np.shape(LM)
+
+    count_zeros = 0
+    for j in np.arange(0, n):
+        for i in np.arange(0, m):
+            if LM_full[i, j] == 0:
+                count_zeros += 1
+            LM_full[i, j] += count_zeros
 
     # get quadrature points and weights in local coordinants
     # xi_sample, w = quadrature_rule(Nint)
@@ -340,6 +349,7 @@ def get_u_of_x_approx(sol, he, Nell, Nint, p, ID, Nsamples, Ndof=6):
     # loop over elements
     print "start loop"
     count = 0
+    count1 = 0
     for e in np.arange(0, Nell):
         # loop over samples
         # for i in np.arange(0, Nsamples):
@@ -356,10 +366,13 @@ def get_u_of_x_approx(sol, he, Nell, Nint, p, ID, Nsamples, Ndof=6):
                 for idof in np.arange(0, Ndof):
                     # idx = int(IEN[a*Ndof+idof, e]) - 1
                     #TODO correct the indexing
-                    # if LM[a * Ndof + idof, e] == 0:
-                    #     continue
+                    if LM[a * Ndof + idof, e] == 0:
+                        count1 += 1
+                        continue
+                    # u_temp[idof] += N[a] * sol[e*Ndof+idof]
                     # u_temp[idof] += N[a] * sol[int(LM[a*Ndof+idof, e]+Ndof) - 1]
-                    u_temp[idof] += N[a] * sol[int(LM[a*Ndof+idof, e]) - 1]
+                    u_temp[idof] += N[a] * sol[int(LM_full[a*Ndof+idof, e]) - 1]
+                    # u_temp[idof] += N[a] * sol[int(LM[a*Ndof+idof, e]+count1) - 1]
                     # u_temp[idof] += N[a] * sol[int(IEN[a*Ndof+idof, e]) - 1]
                     # u_temp[idof] += N[a] * sol[e*Ndof + idof]
                     # if np.any(u_temp) > 0:
@@ -1012,7 +1025,7 @@ def beam_solution_1():
         n = np.array([10, 100])
         # order of basis
         p_vector = np.array([1, 2, 3])
-        plotdofs = np.array([0, 4])
+        plotdofs = np.array([0])
     elif coding_3_problem == 4:
         support_case = 3
         load_case = 2
@@ -1020,7 +1033,7 @@ def beam_solution_1():
         n = np.array([10, 100])
         # order of basis
         p_vector = np.array([1, 2, 3])
-        plotdofs = np.array([0, 4])
+        plotdofs = np.array([0])
     else:
         raise ValueError('Invalid problem number')
 
@@ -1043,11 +1056,12 @@ def beam_solution_1():
         if coding_3_problem == 2:
             u_exact[idof, :] = ((ffunc(x_exact/l, ffunc_args, Ndof))[idof]*(1.-(x_exact-1.)**2)/(2.*E*A))
         elif coding_3_problem == 3:
-            u_exact[idof, :] = ((ffunc(x_exact/l, ffunc_args, Ndof))[idof] * x_exact ** 2) * (
-                                x_exact ** 2 + 6. * l**2 - 4. * l * x_exact) / (24. * E * Ix)
+            if idof == 0:
+                u_exact[idof, :] = ((ffunc(x_exact/l, ffunc_args, Ndof))[idof] * x_exact ** 2) * (
+                                    x_exact ** 2 + 6. * l**2 - 4. * l * x_exact) / (24. * E * Ix)
         elif coding_3_problem == 4:
-            u_exact[idof, :] = ((ffunc(x_exact/l, ffunc_args, Ndof))[idof] * x_exact/(360.*l*E*Ix))*(7.*l**4 - 10.*(l**2)*(x_exact**2) + 3.*x_exact**4)
-
+            if idof == 0:
+                u_exact[idof, :] = (-Px * x_exact/(360.*l*E*Ix))*(7.*l**4 - 10.*(l**2)*(x_exact**2) + 3.*x_exact**4)
 
     for p, i in zip(p_vector, np.arange(0, p_vector.size)):
 
