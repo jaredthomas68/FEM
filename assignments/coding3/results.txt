@@ -1,0 +1,168 @@
+problem 4
+p=1, Nell=10, DOF=0
+Analytical max def: 4.15212803153e-05
+FEM max def: 2.24328862714e-05
+
+problem 4
+p=1, Nell=100, DOF=0
+Analytical max def: 4.15212803153e-05
+FEM max def: 4.15593054241e-05
+
+problem 4
+p=2, Nell=10, DOF=0
+Analytical max def: 4.15212803153e-05
+FEM max def: 4.18574445374e-05
+
+problem 4
+p=2, Nell=100, DOF=0
+Analytical max def: 4.15212803153e-05
+FEM max def: 4.19159857215e-05
+
+problem 4
+p=3, Nell=10, DOF=0
+Analytical max def: 4.15212803153e-05
+FEM max def: 4.19147496846e-05
+
+problem 4
+p=3, Nell=100, DOF=0
+Analytical max def: 4.15212803153e-05
+FEM max def: 4.1915991703e-05
+
+problem 3
+p=1, Nell=10, DOF=0
+Analytical max def: 0.00081699541698
+FEM max def: 0.000433225097979
+
+problem 3
+p=1, Nell=10, DOF=0
+Analytical max def: 0.1232000064
+FEM max def: 0.000931875705497
+
+problem 3
+p=1, Nell=100, DOF=0
+Analytical max def: 0.1232000064
+FEM max def: 0.0518862312387
+
+problem 3
+p=2, Nell=10, DOF=0
+Analytical max def: 0.1232000064
+FEM max def: 0.112560262504
+
+problem 3
+p=2, Nell=100, DOF=0
+Analytical max def: 0.1232000064
+FEM max def: 0.118402095315
+
+problem 3
+p=3, Nell=10, DOF=0
+Analytical max def: 0.1232000064
+FEM max def: 0.120003119965
+
+problem 3
+p=3, Nell=100, DOF=0
+Analytical max def: 0.1232000064
+FEM max def: 0.118403120283
+
+problem 3
+p=1, Nell=10, DOF=4
+Analytical max def: 0.16000128
+FEM max def: 0.00124453264537
+
+problem 3
+p=1, Nell=100, DOF=4
+Analytical max def: 0.16000128
+FEM max def: 0.0701157600181
+
+problem 3
+p=2, Nell=10, DOF=4
+Analytical max def: 0.16000128
+FEM max def: 0.160000000003
+
+
+problem 3
+p=2, Nell=100, DOF=4
+Analytical max def: 0.16000128
+FEM max def: 0.159999825648
+
+problem 3
+p=3, Nell=10, DOF=4
+Analytical max def: 0.16000128
+FEM max def: 0.160009966865
+
+problem 3
+p=3, Nell=100, DOF=4
+Analytical max def: 0.16000128
+FEM max def: 0.15999984117
+
+problem 2
+p=1, Nell=1, DOF=2
+Analytical max def: 9.99999333611e-07
+FEM max def: 1e-06
+
+problem 2
+p=1, Nell=10, DOF=2
+Analytical max def: 9.99999333611e-07
+FEM max def: 1e-06
+
+
+# prob 3 thick at h, b = 10
+
+problem 3
+p=1, Nell=10, DOF=0
+Analytical max def: 7.7000004e-15
+FEM max def: 7.87499759623e-13
+
+problem 3
+p=1, Nell=100, DOF=0
+Analytical max def: 7.7000004e-15
+FEM max def: 7.87321992703e-13
+
+problem 3
+p=2, Nell=10, DOF=0
+Analytical max def: 7.7000004e-15
+FEM max def: 7.8749999984e-13
+
+problem 3
+p=2, Nell=100, DOF=0
+Analytical max def: 7.7000004e-15
+FEM max def: 7.8732200002e-13
+
+problem 3
+p=3, Nell=10, DOF=0
+Analytical max def: 7.7000004e-15
+FEM max def: 7.875e-13
+
+problem 3
+p=3, Nell=100, DOF=0
+Analytical max def: 7.7000004e-15
+FEM max def: 7.87322000026e-13
+
+problem 3
+p=1, Nell=10, DOF=4
+Analytical max def: 1.000008e-14
+FEM max def: 1.00496778949e-14
+
+problem 3
+p=1, Nell=100, DOF=4
+Analytical max def: 1.000008e-14
+FEM max def: 1.00004817947e-14
+
+problem 3
+p=2, Nell=10, DOF=4
+Analytical max def: 1.000008e-14
+FEM max def: 1.00003703776e-14
+
+problem 3
+p=2, Nell=100, DOF=4
+Analytical max def: 1.000008e-14
+FEM max def: 9.99999e-15
+
+problem 3
+p=3, Nell=10, DOF=4
+Analytical max def: 1.000008e-14
+FEM max def: 1e-14
+
+problem 3
+p=3, Nell=100, DOF=4
+Analytical max def: 1.000008e-14
+FEM max def: 9.99999e-15
