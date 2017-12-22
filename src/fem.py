@@ -2,6 +2,7 @@ import math as m
 import numpy as np
 import scipy.sparse as sparse
 from scipy.sparse.linalg import spsolve
+from scipy.linalg import eigh
 import time
 import matplotlib.pylab as plt
 
@@ -52,6 +53,21 @@ def ffunc_beam(x, a=np.array([10, 0.005])):
 
     return f
 
+def ffunc_free_vibration(x, a):
+
+    return 0.
+
+def ffunc_frequency_fixed_fixed(x, a=np.array([10, 0.005])):
+    f = (n*np.pi/l)*np.sqrt(E/rho)
+
+    return
+
+def ffunc_frequency_free_fixed(x, a=np.array([10, 0.005])):
+
+    f = (n-0.5)*(np.pi/l)*np.sqrt(E/rho)
+
+    return
+
 def moment_of_inertia_rectangle(b, h):
 
     Ix = (b*h**3)/12.
@@ -60,7 +76,7 @@ def moment_of_inertia_rectangle(b, h):
 
     return Ix, Iy, Ixy
 
-def fem_solver(Nell, he, Nint, p, ID, E, I, ffunc=ffunc_quadratic, ffunc_args=np.array([0., 0., 1.]), case=2):
+def fem_solver(Nell, he, Nint, p, ID, E, I, rho, Nmodes, ffunc=ffunc_quadratic, ffunc_args=np.array([0., 0., 1.]), case=2):
     print "entering solver"
     # define LM array
     IEN = ien_array(Nell, p)
@@ -68,6 +84,9 @@ def fem_solver(Nell, he, Nint, p, ID, E, I, ffunc=ffunc_quadratic, ffunc_args=np
 
     # initialize global stiffness matrix
     K = np.zeros((ID[ID[:]>0].size, ID[ID[:]>0].size))
+
+    # initialize global mass matrix
+    M = np.zeros((ID[ID[:]>0].size, ID[ID[:]>0].size))
 
     # initialize global force vector
     F = np.zeros(ID[ID[:] > 0].size)
@@ -87,7 +106,9 @@ def fem_solver(Nell, he, Nint, p, ID, E, I, ffunc=ffunc_quadratic, ffunc_args=np
     # loop over elements
     for e in np.arange(1, Nell+1):
         # print "in element loop"
+        # initialize element level stiffness, mass, and forcing matrices
         ke = np.zeros((p + 1, p + 1))
+        me = np.zeros((p + 1, p + 1))
         fe = np.zeros(p + 1)
 
         # solve for local stifness matrix and force vector
@@ -113,7 +134,8 @@ def fem_solver(Nell, he, Nint, p, ID, E, I, ffunc=ffunc_quadratic, ffunc_args=np
 
                     # ke[int(a), int(b)] += Ndx[int(a)]*E*I*Ndx[int(b)]*w[int(i)]*dxdxi
                     # ke[int(a), int(b)] += Ndx[int(a)]*E*I*Ndx[int(b)]*w[int(i)]*dxdxi
-                    ke[int(a), int(b)] += Ndxdx[int(a)]*E*I*Ndxdx[int(b)]*w[int(i)]*dxdxi
+                    ke[int(a), int(b)] += Ndx[int(a)]*E*Ndx[int(b)]*w[int(i)]*dxdxi # leave out I because we are doing axial vibration
+                    me[int(a), int(b)] += rho*N[int(a)]*N[int(b)]*w[int(i)]*dxdxi
 
                     # K[int(LM[a, e - 1] - 1), int(LM[b, e - 1] - 1)] += Ndx[a]*E*I*Ndx[b]*w[i]*dxdxi
                 fe[a] += N[a] * ffunc(x, ffunc_args) * dxdxi * w[i]
@@ -129,40 +151,66 @@ def fem_solver(Nell, he, Nint, p, ID, E, I, ffunc=ffunc_quadratic, ffunc_args=np
                 # k_basis[a, b] = Ndxdx[a]*E*I*Ndxdx[b]*dxdxi*w[i]
                 # k_e[a, b] += Ndx[a] * E * I * Ndx[b] * w[i] * dxdxi
 
-                # global stiffness matrix
+                # assemble global stiffness matrix
                 K[int(LM[a, e - 1] - 1), int(LM[b, e - 1] - 1)] += ke[a, b]
+
+                # assemble global mass matrix
+                M[int(LM[a, e - 1] - 1), int(LM[b, e - 1] - 1)] += me[a, b]
 
             # global force vector
             F[int(LM[a, e - 1] - 1)] += fe[a]
 
-    # solve for d
-    d = solve_for_d(K, F)
-    da = np.copy(d)
-    if case == 0:
-        da = np.append(d, 0.)
-    elif case == 2:
-        da = np.append(np.array([0., 0.]), d)
-    elif case == 1:
-        da = np.append(d, np.array([0., 0.]))
 
-    # determine the number of nodes
+    # find eigenvalues and eigenvectors
+
+    # [Eval, Evec] = np.linalg.eigh(K, M))
+    Eval, Evec = eigh(K, M, eigvals_only=False)#, eigvals=[0, Nmodes-1])
+
+    sorted_idx = np.argsort(Eval)
+
+    sorted_eval = Eval[sorted_idx]
+    sorted_evec = Evec[sorted_idx]
+
+    # solve for d
+    # d = solve_for_d(K, F)
+    # da = np.copy(d)
+    # if case == 0:
+    #     da = np.append(d, 0.)
+    # elif case == 2:
+    #     da = np.append(np.array([0., 0.]), d)
+    # elif case == 1:
+    #     da = np.append(d, np.array([0., 0.]))
+    #
+    # # determine the number of nodes
     Nnodes = Nell + p
 
     # print d, Nnodes
     # quit()
-
+    Nmodes = len(sorted_eval)
     # initialize solution array
-    solution = np.zeros(Nnodes)
+    sol_val = np.zeros(Nnodes)
+    sol_vec = np.zeros([Nmodes, Nnodes])
+
+    if case == 3:
+        sol_val[1:-1] = sorted_eval
+        sol_vec[:, 1:-1] = sorted_evec
+    elif case == 4:
+        sol_val[1:] = sorted_eval
+        sol_val[:, 1:] = sorted_evec
+
 
     # populate solution array
-    for a in np.arange(0, Nnodes):
-        if ID[a] == 0:
-            continue
-        else:
-            solution[a] = da[int(ID[a])-1]
+    # for a in np.arange(0, Nnodes):
+    #     if ID[a] == 0:
+    #         continue
+    #     else:
+    #         solution[a] = da[int(ID[a])-1]
     # print 'solution: ', solution
-    return K, F, d, solution, da
+    return sol_val, sol_vec
 
+def solve_for_m(Ndx):
+
+    return
 def solve_for_d(K, F):
 
     sK = sparse.csr_matrix(K)
@@ -231,7 +279,9 @@ def quadrature_rule(Nint):
 
     return gp, w
 
-def get_u_of_x_approx(sol, he, Nell, Nint, p, Nsamples):
+def get_u_of_x_approx(sol_vec, he, Nell, Nint, p, Nsamples):
+
+    [Nmodes, _] = np.shape(sol_vec)
 
     # get IEN array
     IEN = ien_array(Nell, p)
@@ -244,7 +294,7 @@ def get_u_of_x_approx(sol, he, Nell, Nint, p, Nsamples):
     # Nsamples = xi_sample.size
 
     # initialize displacement vector
-    u = np.zeros(Nell * Nsamples+1)
+    u = np.zeros([Nmodes, Nell * Nsamples+1])
 
     # initialize error vector
     error = np.zeros(Nell * Nint)
@@ -266,25 +316,28 @@ def get_u_of_x_approx(sol, he, Nell, Nint, p, Nsamples):
 
     # loop over elements
     print "start loop"
-    count = 0
-    for e in np.arange(0, Nell):
-        # loop over samples
-        # for i in np.arange(0, Nsamples):
-        for i in np.arange(0, Nsamples):
-            B, Bdxi, Bdxidxi = local_bernstein(xi_sample[i], p)
-            N, Nedxi, Nedxidxi = local_bezier_extraction(p, e + 1, Nell, B, Bdxi, Bdxidxi)
-            Ndx, Ndxdx, dxdxi, x = global_bezier_extraction(ga[e:e + p + 1], N, Nedxi, Nedxidxi)
 
-            x_sample[e*Nsamples+i] = x
+    for m in np.arange(0, Nmodes):
+        count = 0
+        for e in np.arange(0, Nell):
+            # loop over samples
+            # for i in np.arange(0, Nsamples):
+            for i in np.arange(0, Nsamples):
+                B, Bdxi, Bdxidxi = local_bernstein(xi_sample[i], p)
+                N, Nedxi, Nedxidxi = local_bezier_extraction(p, e + 1, Nell, B, Bdxi, Bdxidxi)
+                Ndx, Ndxdx, dxdxi, x = global_bezier_extraction(ga[e:e + p + 1], N, Nedxi, Nedxidxi)
 
-            # print x, xi_sample[i]
-            u_temp = 0.
-            for a in np.arange(0, p + 1):
-                u_temp += N[a] * sol[int(IEN[a, e]) - 1]
+                x_sample[e*Nsamples+i] = x
 
-            # u[int(e * Nint + i)]
-            u[count] = u_temp
-            count += 1
+                # print x, xi_sample[i]
+                u_temp = 0.
+                for a in np.arange(0, p + 1):
+                    u_temp += N[a] * sol_vec[m, int(IEN[a, e]) - 1]
+
+                # u[int(e * Nint + i)]
+                u[m, count] = u_temp
+                count += 1
+
     return u, x_sample
 
 def get_u_of_x_exact(x, q, ffunc_num):
@@ -346,7 +399,7 @@ def get_id(case, Nell, p):
     # cantilever R
     elif case == 1:
         # print 'here in ', case
-        print np.arange(1,Nell+p)
+        # print np.arange(1,Nell+p)
         ID[2:] = np.arange(1,Nell+p-1)
 
 
@@ -354,6 +407,13 @@ def get_id(case, Nell, p):
     elif case == 2:
         ID[0:Nell+p-1] = np.arange(1, Nell+p)
 
+    # fixed fixed
+    elif case == 3:
+        ID[p:-(p)] = np.arange(1, Nell - p + 1)
+
+    # free fixed
+    elif case == 4:
+        ID[:-p] = np.arange(1, Nell + 1)
     else:
         raise ValueError('invalid ID case')
     # quit()
@@ -374,8 +434,8 @@ def local_bernstein(xi, p):
         raise ValueError("the value of xi is $f, but must be in the range [-1, 1]" %xi)
 
     # check if p is in the acceptable range for this code
-    if p > 3 or p < 2:
-        raise ValueError("the value of p must be 2 or 3, but %i was given" % p)
+    # if p > 3 or p < 2:
+    #     raise ValueError("the value of p must be 2 or 3, but %i was given" % p)
 
     # initialize Bernstein polynomial vectors
     B = np.zeros(p+1)
@@ -458,7 +518,7 @@ def local_bernstein(xi, p):
 def local_bezier_extraction(p, e, Nell, B, Bdxi, Bdxidxi):
     # if Nell = 1 C = Identity
     # determine the appropriate Bezier extraction matrix
-    if Nell == 1:
+    if p == 1 or Nell == 1:
 
         C = np.identity(p+1)
 
@@ -513,8 +573,8 @@ def local_bezier_extraction(p, e, Nell, B, Bdxi, Bdxidxi):
                           [0.,     0.,  0., 1.]])
         else:
             raise ValueError('Invalid value of e. Must be in [1, %i], but %i was given' % (Nell, e))
-    else:
-        raise ValueError('p must be 2 or 3, but p=%f was given' % p)
+    # else:
+        raise ValueError('p must be 1, 2 or 3, but p=%f was given' % p)
 
     # solve for the value of the Bezier basis function and derivatives on the element (Ne)
     Ne = np.matmul(C, B)
@@ -858,17 +918,19 @@ def plot_results(solution, p, Nell, Nsamples, ID, Nint=3):
 def beam_solution_1():
 
     # problem parameters
-    E = 1000000
+    E = 1E6
+    rho = 1.
     b = 0.005
     h = 0.005
     l = 1.
     Nint = 3
+    Nmodes = 8
 
     # number of elements
-    n = np.array([1, 10, 100])
+    n = np.array([1000])
 
     # forcing function
-    ffunc = ffunc_beam
+    ffunc = ffunc_free_vibration
 
     # forcing function arguments
     ffunc_args = np.array([10., h])
@@ -879,7 +941,7 @@ def beam_solution_1():
     # quit()
 
     # set case to use
-    case = 0
+    case = 3
 
     figure, axes = plt.subplots(2, 3, sharex=True, sharey=True)
     max_deflection_fem = np.zeros([2, n.size])
@@ -887,15 +949,15 @@ def beam_solution_1():
     nodes = np.zeros([2, int(n.size)])
 
     x_exact = abs(np.linspace(0, 1, 50)-1.)
-    u_exact = (ffunc(x_exact, ffunc_args) * x_exact ** 2) * (x_exact ** 2 + 6. * l - 4. * l * x_exact) / (24. * E * Ix)
+    # u_exact = (ffunc(x_exact, ffunc_args) * x_exact ** 2) * (x_exact ** 2 + 6. * l - 4. * l * x_exact) / (24. * E * Ix)
     x_exact = np.linspace(0, 1, 50)
 
-    for p, i in zip(np.array([2, 3]), np.arange(0, 2)):
+    for p, i in zip(np.array([1, 2, 3]), np.arange(0, 1)):
 
         for Nell, j in zip(n, np.arange(0, n.size)):
 
             # vector of element lengths
-            he = np.ones(Nell) / Nell
+            he = l*np.ones(Nell) / Nell
 
             # vector of element locations
             x = np.linspace(0, 1, 4 * Nell + 1)
@@ -909,19 +971,17 @@ def beam_solution_1():
             nodes[i, j] = Nell+p
 
             tic = time.time()
-            K, F, d, sol, da = fem_solver(Nell, he, Nint, p, ID, E, Ix, ffunc=ffunc, ffunc_args=ffunc_args, case=case)
+            sol_val, sol_vec = fem_solver(Nell, he, Nint, p, ID, E, Ix, rho, Nmodes, ffunc=ffunc, ffunc_args=ffunc_args, case=case)
             toc = time.time()
-            print he, Nell, K
             print "Time to run fem solver: %.3f (s)" % (toc - tic)
             Nsamples = int(100./Nell)
-            u, x = get_u_of_x_approx(sol, he, Nell, Nint, p, Nsamples)
+            u, x = get_u_of_x_approx(sol_vec, he, Nell, Nint, p, Nsamples)
             print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384., 0])
             print "Time to solve for u(x): %.3f (s)" % (toc - tic)
 
 
             print "Finished"
 
-            print d, u, x[::-1]
             # if Nell > 1:
             axes[i,j].plot(x_exact[:-1], u_exact[:-1], '-r', linewidth=1.5)
             axes[i,j].plot(x[:-1], u[:-1], '--b')
@@ -965,115 +1025,6 @@ def beam_solution_1():
 
     return
 
-def beam_solution_2():
-
-    # problem parameters
-    E = 1000000
-    b = 0.005
-    l = 1.
-    Nint = 3
-    Nell = 10
-
-    # number of elements
-    H = np.array([0.1, 0.01, 0.005, 0.002, 0.001])
-
-    # forcing function
-    ffunc = ffunc_beam
-
-    # set case to use
-    case = 0
-
-    figure, axes = plt.subplots(2, H.size, sharex=True, sharey=True)
-    max_deflection_fem = np.zeros([2, H.size])
-    max_deflection_thoeretical = np.zeros([2, H.size])
-    nodes = np.zeros([2, int(H.size)])
-
-    for p, i in zip(np.array([2, 3]), np.arange(0, 2)):
-
-        for h, j in zip(H, np.arange(0, H.size)):
-
-            # forcing function arguments
-            ffunc_args = np.array([10., h])
-
-            # get the moment of inertia of the cross section
-            Ix, _, _ = moment_of_inertia_rectangle(b, h)
-
-
-
-            # vector of element lengths
-            he = np.ones(Nell) / Nell
-
-            # vector of element locations
-            x = np.linspace(0, 1, 4 * Nell + 1)
-
-            # ID array
-            ID = get_id(case, Nell, p)
-
-            nodes[i, j] = Nell+p
-
-            tic = time.time()
-            K, F, d, sol, da = fem_solver(Nell, he, Nint, p, ID, E, Ix, ffunc=ffunc, ffunc_args=ffunc_args, case=case)
-            toc = time.time()
-            # print he, Nell, K
-            # print "Time to run fem solver: %.3f (s)" % (toc - tic)
-
-            Nsamples = int(100. / Nell)
-            u, x = get_u_of_x_approx(sol, he, Nell, Nint, p, Nsamples)
-            # print np.array([1. / 6., 21. / 128., 7. / 48., 37. / 384., 0])
-            # print "Time to solve for u(x): %.3f (s)" % (toc - tic)
-
-            # x = x[::-1]
-
-            x_exact = abs(np.linspace(0, 1, 50)-1.)
-            u_exact = (ffunc(x_exact, ffunc_args) * (x_exact) ** 2) * (x_exact ** 2 + 6. * l - 4. * l * x_exact) / (
-            24. * E * Ix)
-            x_exact = abs(np.linspace(0, 1, 50))
-            print "Finished"
-            print "Ix: ", Ix, "h: ", h
-            print "max def: ", np.max(u_exact)
-            # print d, u, x[::-1]
-            # if Nell > 1:
-
-            axes[i, j].plot(x_exact[:-1], u_exact[:-1], 'r', linewidth=1.5)
-            axes[i,j].plot(x[:-1], u[:-1], '--b')
-
-
-
-            max_deflection_fem[i,j] = max(u)
-            max_deflection_thoeretical[i,j] = max(u_exact)
-
-    axes[0,0].set_title('$h=%.1f$' % H[0])
-    axes[0,1].set_title('$h=%.2f$' % H[1])
-    axes[0,2].set_title('$h=%.3f$' % H[2])
-    axes[0,3].set_title('$h=%.3f$' % H[3])
-    axes[0,4].set_title('$h=%.3f$' % H[4])
-    axes[0,0].set_ylabel('Deflection, $p=2$')
-    axes[1,0].set_ylabel('Deflection, $p=3$')
-    axes[1,0].set_xlabel('X Position')
-    axes[1,1].set_xlabel('X Position')
-    axes[1,2].set_xlabel('X Position')
-    axes[1,3].set_xlabel('X Position')
-    axes[1,4].set_xlabel('X Position')
-    plt.tight_layout()
-    plt.savefig('beam2_deflection.pdf')
-    plt.show()
-
-
-    fig = plt.figure()
-
-    plt.plot(l/H, max_deflection_thoeretical[0,:], '-r', label='theory')
-    plt.plot(l/H, max_deflection_fem[0,:], '--ob', label='fem p=2')
-    plt.plot(l/H, max_deflection_fem[1,:], '--og', label='fem p=3')
-    plt.legend(loc=0)
-    plt.xlabel('Beam Slenderness ($l/h$)')
-    plt.ylabel('Deflection')
-    # plt.ylim([0.0028, 0.0032])
-    plt.tight_layout()
-    plt.savefig('max_deflection_vs_h.pdf', transparent=True)
-    plt.show()
-
-    return
-
 if __name__ == "__main__":
 
     # get_lm(10)
@@ -1095,4 +1046,3 @@ if __name__ == "__main__":
     # plot_results()
 
     beam_solution_1()
-    beam_solution_2()
